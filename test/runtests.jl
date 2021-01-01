@@ -15,4 +15,4 @@ file = files.data[1]
 links = OSF.relationship(osf, proj, :view_only_links)
 link = only(links.data)
 
-joinpath(file.links[:download], "?view_only=$(link.attributes[:key])")
+OSF.file_viewonly_url(file, link, :html)
