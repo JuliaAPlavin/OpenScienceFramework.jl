@@ -1,4 +1,4 @@
-import OpenScienceFrameworkClient as OSF
+import OpenScienceFramework as OSF
 
 token = "BiBvoIbBgNHIAE9VDrRlbxAw0h1AahVv4lQlkoixQlPLZPXFgW0BkUTHIarKUSW8nGH8AX"
 osf = OSF.Client(; token)

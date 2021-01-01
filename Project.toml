@@ -1,4 +1,4 @@
-name = "OpenScienceFrameworkClient"
+name = "OpenScienceFramework"
 uuid = "ca34efa3-7b06-4646-a985-ce0937c3739e"
 authors = ["Alexander Plavin <alexander@plav.in>"]
 version = "0.1.0"
