@@ -2,14 +2,17 @@ import OpenScienceFrameworkClient as OSF
 
 token = "BiBvoIbBgNHIAE9VDrRlbxAw0h1AahVv4lQlkoixQlPLZPXFgW0BkUTHIarKUSW8nGH8AX"
 osf = OSF.Client(; token)
-proj = OSF.get_project(osf, "DataCatalogs.jl")
-provider = OSF.request(osf, "GET", "nodes/$(proj["id"])/files/")["data"] |> only
-files = OSF.request(osf, "GET", "nodes/$(proj["id"])/files/$(provider["attributes"]["provider"])/")
-HTTP.request(
-    "PUT",
-    provider["links"]["upload"],
-    ["Authorization" => "Bearer $(osf.token)"],
-    "file content test",
-    query=["kind" => "file", "name" => "test.txt"],
-    verbose=3
-)
+user = OSF.get_entity(osf, :users, "me")
+nodes = OSF.relationship(osf, user, :nodes, filters=["title" => "DataCatalogs.jl"])
+proj = only(nodes.data)
+storages = OSF.relationship(osf, proj, :files)
+storage = only(storages.data)
+@assert storage.attributes[:name] == "osfstorage"
+files = OSF.relationship(osf, storage, :files)
+@assert OSF.is_complete(files)
+file = files.data[1]
+
+links = OSF.relationship(osf, proj, :view_only_links)
+link = only(links.data)
+
+joinpath(file.links[:download], "?view_only=$(link.attributes[:key])")
