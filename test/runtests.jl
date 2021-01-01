@@ -11,8 +11,12 @@ storage = only(storages.data)
 files = OSF.relationship(osf, storage, :files)
 @assert OSF.is_complete(files)
 file = files.data[1]
+dir = files.data[2]
 
 links = OSF.relationship(osf, proj, :view_only_links)
 link = only(links.data)
 
 OSF.file_viewonly_url(file, link, :html)
+
+# OSF.upload_file(osf, file, "abcdef1")
+# OSF.upload_file(osf, dir, "newname", "abcdefxaxa")
