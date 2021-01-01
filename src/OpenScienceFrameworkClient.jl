@@ -4,17 +4,15 @@ import HTTP
 import JSON
 import Parameters: @with_kw
 
-export OSFClient, get_project
 
-
-@with_kw struct OSFClient
+@with_kw struct Client
     api_version::String = "2"
     token::String
 end
 
-headers(osf::OSFClient) = ["Authorization" => "Bearer $(osf.token)"]
+headers(osf::Client) = ["Authorization" => "Bearer $(osf.token)"]
 
-function request(osf::OSFClient, method::String, resource::String)
+function request(osf::Client, method::String, resource::String)
     r = HTTP.request(
         method,
         joinpath("https://api.osf.io", "v$(osf.api_version)", resource),
@@ -23,13 +21,13 @@ function request(osf::OSFClient, method::String, resource::String)
     JSON.parse(String(r.body))
 end
 
-function get_project(osf::OSFClient, name::String)
+function get_project(osf::Client, name::String)
     r = request(osf, "GET", "nodes/?filter[title]=$name")
     proj = only(r["data"])
-    @assert node["attributes"]["title"] == name
+    @assert proj["attributes"]["title"] == name
     r = request(osf, "GET", "nodes/$(proj["id"])/files/")
     provider = only(r["data"])
-    @assert r["attributes"]["provider"] == "osfstorage"
+    @assert provider["attributes"]["provider"] == "osfstorage"
     proj
 end
 
