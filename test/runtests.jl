@@ -1,23 +1,26 @@
 import OpenScienceFramework as OSF
 
 token = "BiBvoIbBgNHIAE9VDrRlbxAw0h1AahVv4lQlkoixQlPLZPXFgW0BkUTHIarKUSW8nGH8AX"
-osf = OSF.Client(; token)
-user = OSF.get_entity(osf, :users, "me")
-nodes = OSF.relationship(osf, user, :nodes, filters=["title" => "DataCatalogs.jl"])
+@time osf = OSF.Client(; token)
+@time user = OSF.get_entity(osf, :users, "me")
+@time nodes = OSF.relationship(osf, user, :nodes, filters=["title" => "DataCatalogs.jl"])
 proj = only(nodes.data)
-storages = OSF.relationship(osf, proj, :files)
+@time storages = OSF.relationship(osf, proj, :files)
 storage = only(storages.data)
 @assert storage.attributes[:name] == "osfstorage"
-files = OSF.relationship(osf, storage, :files)
+@time files = OSF.relationship(osf, storage, :files)
 @assert OSF.is_complete(files)
 file = files.data[1]
 dir = files.data[2]
-OSF.find_by_path(osf, storage, "/tmpdir/newname")
 
-links = OSF.relationship(osf, proj, :view_only_links)
+@time versions = OSF.relationship(osf, file, :versions, etype=:file_versions)
+
+@time OSF.find_by_path(osf, storage, "/tmpdir/newname")
+
+@time links = OSF.relationship(osf, proj, :view_only_links)
 link = only(links.data)
 
-OSF.file_viewonly_url(file, link, :html)
+@time OSF.file_viewonly_url(versions.data[1], link, :download)
 
 # OSF.upload_file(osf, file, "abcdef1")
 # OSF.upload_file(osf, dir, "newname", "abcdefxaxa")

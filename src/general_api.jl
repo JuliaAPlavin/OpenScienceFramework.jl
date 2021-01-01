@@ -41,7 +41,11 @@ mutable struct Entity{T}
 
     function Entity{T}(e::Entity{nothing}) where {T}
         @assert T === nothing || Symbol(e.type) == T
-        new(map(k -> getfield(e, k), fieldnames(Entity{T}))...)
+        r = new()
+        for k in fieldnames(Entity{T})
+            isdefined(e, k) && setfield!(r, k, getfield(e, k))
+        end
+        r
     end
 end
 check(e::Entity{T}) where {T} = @assert T === nothing || Symbol(e.type) == T
@@ -59,9 +63,8 @@ StructTypes.StructType(::Type{<:EntityContainer}) = StructTypes.Mutable()
 
 
 function get_entity(osf::Client, endpoint::Symbol, id::String)
-    r = request(EntityContainer{endpoint}, osf, "GET", "$endpoint/$id")
-    check(r.data)
-    return r.data
+    r = request(EntityContainer{nothing}, osf, "GET", "$endpoint/$id")
+    return convert(Entity{endpoint}, r.data)
 end
 
 
@@ -71,6 +74,10 @@ mutable struct EntityCollection{T}
     meta::Dict
     data::Vector{Entity{T}}
     EntityCollection{T}() where {T} = new()
+
+    function EntityCollection{T}(e::EntityCollection{nothing}) where {T}
+        new(map(k -> getfield(e, k), fieldnames(EntityCollection{T}))...)
+    end
 end
 check(ec::EntityCollection) = foreach(check, ec.data)
 StructTypes.StructType(::Type{<:EntityCollection}) = StructTypes.Mutable()
@@ -83,7 +90,6 @@ end
 
 function get_collection(osf::Client, endpoint::String; filters::Vector=[], etype=nothing)
     filter_str = join(["filter[$field]=$value" for (field, value) in filters], "&")
-    r = request(EntityCollection{etype}, osf, "GET", joinpath(endpoint, "?$filter_str"))
-    check(r)
-    return r
+    r = request(EntityCollection{nothing}, osf, "GET", joinpath(endpoint, "?$filter_str"))
+    return EntityCollection{etype}(r)
 end
