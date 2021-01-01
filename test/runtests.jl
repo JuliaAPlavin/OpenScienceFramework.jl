@@ -12,6 +12,7 @@ files = OSF.relationship(osf, storage, :files)
 @assert OSF.is_complete(files)
 file = files.data[1]
 dir = files.data[2]
+OSF.find_by_path(osf, storage, "/tmpdir/newname")
 
 links = OSF.relationship(osf, proj, :view_only_links)
 link = only(links.data)
