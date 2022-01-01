@@ -45,11 +45,21 @@ end
         @test read(file, String) == "my file content"
         @test length(OSF.versions(file)) == 1
 
-        write(file, "some new content")
+        write(file, b"some new content")
         file = OSF.file(dir, "myfile.txt")
         @test read(file, String) == "some new content"
+        @test read(file) == b"some new content"
         @test length(OSF.versions(file)) == 2
         @test read.(OSF.versions(file), String) == ["some new content", "my file content"]
+
+        let fname = tempname()
+            write(fname, "content from file")
+            open(fname) do io
+                write(file, io)  # method specific to OSF.File - not in Base
+            end
+        end
+        @test read(file, String) == "content from file"
+        @test length(OSF.versions(file)) == 3
 
         OSF.url(file)
         map(OSF.url, OSF.versions(file))

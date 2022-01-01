@@ -140,13 +140,10 @@ function Base.rm(d::Directory)
     return DirectoryNonexistent(project(d), d.storage, abspath(d))
 end
 
-function Base.write(f::File, content::String)
-    API.upload_file(client(f), f.entity, content)
-end
+Base.write(f::File, content) = API.upload_file(client(f), f.entity, content)
+Base.write(f::FileNonexistent, content) = API.upload_file(client(f), directory(f).entity, basename(f), content)
 
-function Base.write(f::FileNonexistent, content::String)
-    API.upload_file(client(f), directory(f).entity, basename(f), content)
-end
+
 
 function Base.readdir(::Type{Directory}, proj::Project; storage=nothing)
     storage_e = (@__MODULE__).storage(proj, storage)
