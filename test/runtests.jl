@@ -3,6 +3,17 @@ import Downloads
 using Test
 
 
+import Aqua
+import CompatHelperLocal
+@testset begin
+    CompatHelperLocal.@check()
+    Aqua.test_ambiguities(OSF, recursive=false)
+    Aqua.test_unbound_args(OSF)
+    Aqua.test_undefined_exports(OSF)
+    Aqua.test_stale_deps(OSF)
+end
+
+
 project_title = "Test_OSFjl_project"
 token = "BiBvoIbBgNHIAE9VDrRlbxAw0h1AahVv4lQlkoixQlPLZPXFgW0BkUTHIarKUSW8nGH8AX"
 
