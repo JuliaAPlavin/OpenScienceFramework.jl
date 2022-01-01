@@ -11,3 +11,10 @@ function upload_file(osf::Client, dir::Entity{:files}, name::String, content)
 end
 
 const update_file = upload_file
+
+
+
+function create_folder(osf::Client, dir::Entity{:files}, name::String)
+    @assert dir.attributes[:kind] == "folder"
+    r = HTTP.request("PUT", dir.links[:new_folder] * "&name=$name", headers(osf))
+end

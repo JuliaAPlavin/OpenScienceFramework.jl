@@ -106,5 +106,18 @@ end
 end
 
 @testset "folders" begin
-    
+    OSF.create_folder(osf, storage, "testdir")
+    dir = OSF.find_by_path(osf, storage, "/testdir/")
+    @test dir.attributes[:kind] == "folder"
+    @test dir.attributes[:materialized_path] == "/testdir/"
+
+    @sync for i in 1:20
+        @async OSF.upload_file(osf, dir, "test_indir_$i.txt", "test indir #$i")
+    end
+
+    @test sort(readdir(osf, storage)) == sort(["test.txt"; "testdir"; ["test_$i.txt" for i in 1:30]])
+    @test sort(readdir(osf, dir)) == sort(["test_indir_$i.txt" for i in 1:20])
+
+    @test OSF.find_by_path(osf, storage, "/testdir/test.txt") == nothing
+    @test OSF.find_by_path(osf, storage, "/testdir/test_indir_12.txt").attributes[:materialized_path] == "/testdir/test_indir_12.txt"
 end
