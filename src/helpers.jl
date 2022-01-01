@@ -29,3 +29,10 @@ function relationship_complete(osf::Client, entity::Entity, rel::Symbol; kwargs.
     end
     return entities
 end
+
+Base.readdir(osf, dir::Entity{:files}) = [f.attributes[:name] for f in relationship_complete(osf, dir, :files)]
+readtree(osf, dir::Entity{:files}) = [
+    v.attributes[:materialized_path] => v
+    for f in relationship_complete(osf, dir, :files)
+    for (_, v) in (haskey(f.relationships, :files) ? readtree(osf, f) : [(nothing, f)])
+]
