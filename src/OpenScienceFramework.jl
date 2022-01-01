@@ -199,7 +199,7 @@ project(x::FileVersion) = project(x.file)
 
 versions(f::File) = [
     FileVersion(f, ent)
-    for ent in API.relationship_complete(client(f), file.entity, :versions, etype=:file_versions)
+    for ent in API.relationship_complete(client(f), f.entity, :versions, etype=:file_versions)
 ]
 
 url(f::Union{File,FileVersion}, vo_link::ViewOnlyLink) = API.file_viewonly_url(f.entity, vo_link.entity, :download)
