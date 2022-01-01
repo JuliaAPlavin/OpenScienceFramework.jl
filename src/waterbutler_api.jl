@@ -10,8 +10,6 @@ function upload_file(osf::Client, dir::Entity{:files}, name::String, content)
     r = HTTP.request("PUT", joinpath(dir.links[:upload], "?kind=file&name=$name"), headers(osf), content)
 end
 
-const update_file = upload_file
-
 
 
 function create_folder(osf::Client, dir::Entity{:files}, name::String)

@@ -6,6 +6,7 @@ include("waterbutler_api.jl")
 include("helpers.jl")
 end
 
+import Downloads
 import .API: Client
 
 struct Project
@@ -13,6 +14,7 @@ struct Project
     entity::API.Entity{:nodes}
 end
 client(x::Project) = x.client
+client(x) = client(project(x))
 
 function project(c::Client; user::String="me", title::String)
     user_e = API.get_entity(c, :users, user)
@@ -35,7 +37,7 @@ struct Directory
     entity::API.Entity{:files}
 end
 
-client(x::Directory) = client(x.project)
+project(x::Directory) = x.project
 Base.isdir(::Directory) = true
 Base.isfile(::Directory) = false
 Base.basename(d::Directory) = d.entity.attributes[:name]
@@ -47,7 +49,7 @@ struct DirectoryNonexistent
     path::String
 end
 
-client(x::DirectoryNonexistent) = client(x.project)
+project(x::DirectoryNonexistent) = x.project
 Base.isdir(::DirectoryNonexistent) = false
 Base.isfile(::DirectoryNonexistent) = false
 Base.basename(d::DirectoryNonexistent) = basename(dirname(d.path))
@@ -55,7 +57,28 @@ Base.abspath(d::DirectoryNonexistent) = d.path
 
 
 struct File
+    project::Project
+    storage::API.Entity{:files}
+    entity::API.Entity{:files}
 end
+
+project(x::File) = x.project
+Base.isdir(::File) = false
+Base.isfile(::File) = true
+Base.basename(d::File) = d.entity.attributes[:name]
+Base.abspath(d::File) = d.entity.attributes[:materialized_path]
+
+struct FileNonexistent
+    project::Project
+    storage::API.Entity{:files}
+    path::String
+end
+
+project(x::FileNonexistent) = x.project
+Base.isdir(::FileNonexistent) = false
+Base.isfile(::FileNonexistent) = false
+Base.basename(d::FileNonexistent) = basename(d.path)
+Base.abspath(d::FileNonexistent) = d.path
 
 
 function directory(proj::Project, path::AbstractString; storage=nothing)
@@ -72,16 +95,57 @@ function directory(proj::Project, path::AbstractString; storage=nothing)
     end
 end
 
+function directory(parent::Directory, name::AbstractString)
+    @assert !occursin("/", strip(name, '/'))  name
+    path = joinpath(abspath(parent), name)
+    path = endswith(path, "/") ? path : "$(path)/"
+    @assert startswith(path, "/")  path
+    dir_e = API.find_by_path(client(parent), parent.entity, path)
+    if isnothing(dir_e)
+        return DirectoryNonexistent(project(parent), parent.storage, path)
+    else
+        @assert dir_e.attributes[:kind] == "folder"
+        @assert dir_e.attributes[:path] == "/" || dir_e.attributes[:materialized_path] == path
+        return Directory(project(parent), parent.storage, dir_e)
+    end
+end
+
+directory(f::FileNonexistent) = directory(project(f), dirname(abspath(f)); f.storage)
+directory(f::File) = directory(project(f), dirname(abspath(f)); f.storage)
+
+function file(parent::Directory, name::AbstractString)
+    @assert !occursin("/", strip(name, '/'))  name
+    path = joinpath(abspath(parent), name)
+    @assert !endswith(path, "/") && startswith(path, "/")  path
+    entity = API.find_by_path(client(parent), parent.entity, path)
+    if isnothing(entity)
+        return FileNonexistent(project(parent), parent.storage, path)
+    else
+        # @assert entity.attributes[:kind] == "folder"
+        # @assert entity.attributes[:path] == "/" || entity.attributes[:materialized_path] == path
+        return File(project(parent), parent.storage, entity)
+    end
+end
+
+
 function Base.mkdir(d::DirectoryNonexistent)
     @assert dirname(d.path) * "/" == d.path  d.path
-    parent_d = directory(d.project, dirname(dirname(d.path)); d.storage)
+    parent_d = directory(project(d), dirname(dirname(d.path)); d.storage)
     API.create_folder(client(d), parent_d.entity, basename(d))
-    return directory(d.project, d.path; d.storage)
+    return directory(project(d), d.path; d.storage)
 end
 
 function Base.rm(d::Directory)
     API.delete(client(d), d.entity)
-    return DirectoryNonexistent(d.project, d.storage, abspath(d))
+    return DirectoryNonexistent(project(d), d.storage, abspath(d))
+end
+
+function Base.write(f::File, content::String)
+    API.upload_file(client(f), f.entity, "test content")
+end
+
+function Base.write(f::FileNonexistent, content::String)
+    API.upload_file(client(f), directory(f).entity, basename(f), content)
 end
 
 function Base.readdir(::Type{Directory}, proj::Project; storage=nothing)
@@ -93,5 +157,52 @@ function Base.readdir(::Type{Directory}, proj::Project; storage=nothing)
         if haskey(ent.relationships, :files)
     ]
 end
+
+function Base.readdir(::Type{Directory}, dir::Directory)
+    entities = API.relationship_complete(client(dir), dir.entity, :files)
+    [
+        Directory(project(dir), dir.storage, ent)
+        for ent in entities
+        if haskey(ent.relationships, :files)
+    ]
+end
+
+function Base.readdir(::Type{File}, dir::Directory)
+    entities = API.relationship_complete(client(dir), dir.entity, :files)
+    [
+        File(project(dir), dir.storage, ent)
+        for ent in entities
+        if !haskey(ent.relationships, :files)
+    ]
+end
+
+
+Base.read(f::File) = take!(Downloads.download(url(f), IOBuffer()))
+Base.read(f::File, ::Type{String}) = String(read(f))
+
+
+struct ViewOnlyLink
+    entity::API.Entity{:view_only_links}
+end
+
+function view_only_links(proj::Project)
+    links = API.relationship(client(proj), proj.entity, :view_only_links)
+    return map(ViewOnlyLink, links.data)
+end
+
+struct FileVersion
+    file::File
+    entity::API.Entity{:file_versions}
+end
+
+project(x::FileVersion) = project(x.file)
+
+versions(f::File) = [
+    FileVersion(f, ent)
+    for ent in API.relationship_complete(client(f), file.entity, :versions, etype=:file_versions)
+]
+
+url(f::Union{File,FileVersion}, vo_link::ViewOnlyLink) = API.file_viewonly_url(f.entity, vo_link.entity, :download)
+url(f::Union{File,FileVersion}) = url(f, only(view_only_links(project(f))))
 
 end # module
