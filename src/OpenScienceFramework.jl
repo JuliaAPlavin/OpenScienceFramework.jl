@@ -141,7 +141,7 @@ function Base.rm(d::Directory)
 end
 
 function Base.write(f::File, content::String)
-    API.upload_file(client(f), f.entity, "test content")
+    API.upload_file(client(f), f.entity, content)
 end
 
 function Base.write(f::FileNonexistent, content::String)
