@@ -177,10 +177,6 @@ function Base.readdir(::Type{File}, dir::Directory)
 end
 
 
-Base.read(f::File) = take!(Downloads.download(string(url(f)), IOBuffer()))
-Base.read(f::File, ::Type{String}) = String(read(f))
-
-
 struct ViewOnlyLink
     entity::API.Entity{:view_only_links}
 end
@@ -203,6 +199,9 @@ versions(f::File) = [
 ]
 
 url(f::Union{File,FileVersion}, vo_link::ViewOnlyLink) = API.file_viewonly_url(f.entity, vo_link.entity, :download)
-url(f::Union{File,FileVersion}) = url(f, only(view_only_links(project(f))))
+url(f) = url(f, only(view_only_links(project(f))))
+
+Base.read(f::Union{File,FileVersion}) = take!(Downloads.download(string(url(f)), IOBuffer()))
+Base.read(f::Union{File,FileVersion}, ::Type{String}) = String(read(f))
 
 end # module
