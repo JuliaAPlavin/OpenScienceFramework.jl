@@ -15,6 +15,7 @@ headers(osf::Client) = ["Authorization" => "Bearer $(osf.token)"]
 
 to_payload(x::String) = x
 to_payload(x::Dict) = JSON.write(x)
+result_to(T::Type{Nothing}, r::HTTP.Response) = @assert isempty(r.body);
 result_to(T::Type{String}, r::HTTP.Response) = String(r.body)
 result_to(T::Type{Dict}, r::HTTP.Response) = copy(JSON.read(String(r.body)))
 result_to(T::Type, r::HTTP.Response) = JSON.read(String(r.body), T)
@@ -25,8 +26,9 @@ function request(osf::Client, ::Val{:GET}, resource, T)::T
     return result_to(T, r)
 end
 
-function request(osf::Client, ::Val{:POST}, resource, T; payload, content_type="application/json")::T
-    r = HTTP.post(
+function request(osf::Client, ::Val{method}, resource, T; payload="", content_type="application/json")::T where {method}
+    r = HTTP.request(
+        method,
         resource_url(osf, resource),
         [headers(osf); "Content-Type" => content_type],
         to_payload(payload)
@@ -71,6 +73,8 @@ function get_entity(osf::Client, endpoint::Symbol, id::String)
     return convert(Entity{endpoint}, r.data)
 end
 
+create_entity(osf::Client, type::String, attributes::Dict) = request(osf, Val(:POST), "$type/", Dict, payload=Dict("data" => Dict("type" => type, "attributes" => attributes)))
+delete(osf::Client, e::Entity) = request(osf, Val(:DELETE), e.links[:delete], Nothing)
 
 
 mutable struct EntityCollection{T}
