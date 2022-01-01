@@ -12,8 +12,8 @@ function find_by_path(osf::Client, root::Entity{:files}, path::String)
         root.attributes[:materialized_path] == path && return root
     end
     root.attributes[:kind] == "file" && return nothing
-    files = relationship(osf, root, :files)
-    found = map(files.data) do file
+    files = relationship_complete(osf, root, :files)
+    found = map(files) do file
         find_by_path(osf, file, path)
     end
     filter!(!isnothing, found)
