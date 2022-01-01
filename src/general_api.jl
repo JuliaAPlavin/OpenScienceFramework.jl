@@ -94,6 +94,8 @@ check(ec::EntityCollection) = foreach(check, ec.data)
 StructTypes.StructType(::Type{<:EntityCollection}) = StructTypes.Mutable()
 
 is_complete(ec::EntityCollection) = length(ec.data) == ec.links["meta"]["total"]
+has_next(ec::EntityCollection) = !isnothing(ec.links["next"])
+get_next(osf::Client, ec::EntityCollection{T}) where {T} = get_collection(osf, ec.links["next"], etype=T)
 
 function relationship(osf::Client, entity::Entity, relationship::Symbol; etype::Union{Nothing, Symbol}=relationship, filters::Vector=[])
     return get_collection(osf, entity.relationships[relationship]["links"]["related"]["href"]; filters, etype=etype)

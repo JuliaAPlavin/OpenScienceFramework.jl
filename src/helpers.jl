@@ -19,3 +19,13 @@ function find_by_path(osf::Client, root::Entity{:files}, path::String)
     filter!(!isnothing, found)
     isempty(found) ? nothing : only(found)
 end
+
+function relationship_complete(osf::Client, entity::Entity, rel::Symbol; kwargs...)
+    es = relationship(osf, entity, rel; kwargs...)
+    entities = es.data
+    while has_next(es)
+        es = get_next(osf, es)
+        append!(entities, es.data)
+    end
+    return entities
+end
