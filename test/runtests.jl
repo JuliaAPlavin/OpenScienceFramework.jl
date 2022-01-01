@@ -49,7 +49,7 @@ end
         file = OSF.file(dir, "myfile.txt")
         @test read(file, String) == "some new content"
         @test length(OSF.versions(file)) == 2
-        @test read.(OSF.versions(file)) == ["some new content", "my file content"]
+        @test read.(OSF.versions(file), String) == ["some new content", "my file content"]
 
         OSF.url(file)
         map(OSF.url, OSF.versions(file))
