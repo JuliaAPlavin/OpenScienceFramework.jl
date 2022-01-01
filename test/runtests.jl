@@ -4,7 +4,11 @@ using Test
 
 
 project_title = "Test_OSFjl_project"
-token = read(joinpath(@__DIR__, "osf_token"), String)
+token = if haskey(ENV, "OSF_TOKEN")
+    ENV["OSF_TOKEN"]
+else
+    read(joinpath(@__DIR__, "OSF_TOKEN"), String)
+end
 
 @testset verbose=true "highlevel" begin
     @testset begin

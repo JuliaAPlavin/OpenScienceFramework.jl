@@ -9,6 +9,7 @@ on:
 
 env:
   JULIA_PKG_SERVER:
+  OSF_TOKEN: ${{ secrets.OSF_TOKEN }}
 
 jobs:
   test:
