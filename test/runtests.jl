@@ -31,18 +31,28 @@ end
         @test !isdir(subdir)
         subdir = mkdir(subdir)
         @test isdir(subdir)
+        @test isdir(OSF.directory(dir, "mysubdir"))
         @test [basename(d) for d in readdir(OSF.Directory, dir)] == ["mysubdir"]
 
         @test [basename(d) for d in readdir(OSF.File, dir)] == []
         file = OSF.file(dir, "myfile.txt")
         @test !isfile(file)
+
         write(file, "my file content")
         file = OSF.file(dir, "myfile.txt")
-        @test isfile(file)
         @test [basename(d) for d in readdir(OSF.File, dir)] == ["myfile.txt"]
+        @test isfile(file)
         @test read(file, String) == "my file content"
+        @test length(OSF.versions(file)) == 1
+
+        write(file, "some new content")
+        file = OSF.file(dir, "myfile.txt")
+        @test read(file, String) == "some new content"
+        @test length(OSF.versions(file)) == 2
+        @test read.(OSF.versions(file)) == ["some new content", "my file content"]
 
         OSF.url(file)
+        map(OSF.url, OSF.versions(file))
     end
 end
 
