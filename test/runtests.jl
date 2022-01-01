@@ -38,7 +38,7 @@ token = read(joinpath(@__DIR__, "osf_token"), String)
         @test [basename(d) for d in readdir(OSF.File, dir)] == ["myfile.txt"]
         @test read(file, String) == "my file content"
 
-        url(file)
+        OSF.url(file)
     end
 end
 
