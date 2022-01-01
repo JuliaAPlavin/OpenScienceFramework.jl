@@ -13,9 +13,8 @@ end
 
 headers(osf::Client) = ["Authorization" => "Bearer $(osf.token)"]
 
-function request(::Type{String}, osf::Client, method::String, resource::String)::String where {T}
-    r = HTTP.request(
-        method,
+function request(::Type{String}, osf::Client, resource::String)::String where {T}
+    r = HTTP.get(
         occursin(r"^https?://", resource) ? resource : joinpath("https://api.osf.io", "v$(osf.api_version)", resource),
         headers(osf),
     )
@@ -29,6 +28,18 @@ end
 function request(::Type{T}, args...)::T where {T}
     return JSON.read(request(String, args...), T)
 end
+
+function request_post(::Type{String}, osf::Client, resource::String, payload::String; content_type="application/json")
+    r = HTTP.post(
+        occursin(r"^https?://", resource) ? resource : joinpath("https://api.osf.io", "v$(osf.api_version)", resource),
+        [headers(osf); "Content-Type" => content_type],
+        payload
+    )
+    return String(r.body)
+end
+
+request_post(::Type{String}, osf::Client, resource::String, payload::Dict; kwargs...) = request_post(String, osf, resource, JSON.write(payload); kwargs...)
+request_post(::Type{Dict}, args...; kwargs...)::Dict = copy(JSON.read(request_post(String, args...; kwargs...)))
 
 
 mutable struct Entity{T}
@@ -63,7 +74,7 @@ StructTypes.StructType(::Type{<:EntityContainer}) = StructTypes.Mutable()
 
 
 function get_entity(osf::Client, endpoint::Symbol, id::String)
-    r = request(EntityContainer{nothing}, osf, "GET", "$endpoint/$id")
+    r = request(EntityContainer{nothing}, osf, "$endpoint/$id")
     return convert(Entity{endpoint}, r.data)
 end
 
@@ -89,7 +100,9 @@ function relationship(osf::Client, entity::Entity, relationship::Symbol; etype::
 end
 
 function get_collection(osf::Client, endpoint::String; filters::Vector=[], etype=nothing)
-    filter_str = join(["filter[$field]=$value" for (field, value) in filters], "&")
-    r = request(EntityCollection{nothing}, osf, "GET", joinpath(endpoint, "?$filter_str"))
+    uri = parse(HTTP.URI, endpoint)
+    query = merge(HTTP.queryparams(uri), Dict("filter[$field]" => value for (field, value) in filters))
+    uri = HTTP.URI(uri; query)
+    r = request(EntityCollection{nothing}, osf, string(uri))
     return EntityCollection{etype}(r)
 end
