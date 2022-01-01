@@ -13,33 +13,26 @@ end
 
 headers(osf::Client) = ["Authorization" => "Bearer $(osf.token)"]
 
-function request(::Type{String}, osf::Client, resource::String)::String where {T}
-    r = HTTP.get(
-        occursin(r"^https?://", resource) ? resource : joinpath("https://api.osf.io", "v$(osf.api_version)", resource),
-        headers(osf),
-    )
-    return String(r.body)
+to_payload(x::String) = x
+to_payload(x::Dict) = JSON.write(x)
+result_to(T::Type{String}, r::HTTP.Response) = String(r.body)
+result_to(T::Type{Dict}, r::HTTP.Response) = copy(JSON.read(String(r.body)))
+result_to(T::Type, r::HTTP.Response) = JSON.read(String(r.body), T)
+resource_url(osf::Client, x::String) = occursin(r"^https?://", x) ? x : joinpath("https://api.osf.io", "v$(osf.api_version)", x)
+
+function request(osf::Client, ::Val{:GET}, resource, T)::T
+    r = HTTP.get(resource_url(osf, resource), headers(osf))
+    return result_to(T, r)
 end
 
-function request(::Type{Dict}, args...)::Dict
-    return copy(JSON.read(request(String, args...)))
-end
-
-function request(::Type{T}, args...)::T where {T}
-    return JSON.read(request(String, args...), T)
-end
-
-function request_post(::Type{String}, osf::Client, resource::String, payload::String; content_type="application/json")
+function request(osf::Client, ::Val{:POST}, resource, T; payload, content_type="application/json")::T
     r = HTTP.post(
-        occursin(r"^https?://", resource) ? resource : joinpath("https://api.osf.io", "v$(osf.api_version)", resource),
+        resource_url(osf, resource),
         [headers(osf); "Content-Type" => content_type],
-        payload
+        to_payload(payload)
     )
-    return String(r.body)
+    return result_to(T, r)
 end
-
-request_post(::Type{String}, osf::Client, resource::String, payload::Dict; kwargs...) = request_post(String, osf, resource, JSON.write(payload); kwargs...)
-request_post(::Type{Dict}, args...; kwargs...)::Dict = copy(JSON.read(request_post(String, args...; kwargs...)))
 
 
 mutable struct Entity{T}
@@ -74,7 +67,7 @@ StructTypes.StructType(::Type{<:EntityContainer}) = StructTypes.Mutable()
 
 
 function get_entity(osf::Client, endpoint::Symbol, id::String)
-    r = request(EntityContainer{nothing}, osf, "$endpoint/$id")
+    r = request(osf, Val(:GET), "$endpoint/$id", EntityContainer{nothing})
     return convert(Entity{endpoint}, r.data)
 end
 
@@ -105,6 +98,6 @@ function get_collection(osf::Client, endpoint::String; filters::Vector=[], etype
     uri = parse(HTTP.URI, endpoint)
     query = merge(HTTP.queryparams(uri), Dict("filter[$field]" => value for (field, value) in filters))
     uri = HTTP.URI(uri; query)
-    r = request(EntityCollection{nothing}, osf, string(uri))
+    r = request(osf, Val(:GET), string(uri), EntityCollection{nothing})
     return EntityCollection{etype}(r)
 end
