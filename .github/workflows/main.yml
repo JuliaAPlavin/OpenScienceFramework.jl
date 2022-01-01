@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - '*'
+    tags-ignore:
+      - '*'
+
+env:
+  JULIA_PKG_SERVER:
+
+jobs:
+  test:
+    timeout-minutes: 10
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        julia-version: ['~1.6.0-0', 'nightly']
+        julia-arch: [x64]
+        os: [ubuntu-latest]
+      max-parallel: 1
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: julia-actions/setup-julia@latest
+        with:
+          version: ${{ matrix.julia-version }}
+          arch: ${{ matrix.julia-arch }}
+      - uses: julia-actions/julia-buildpkg@latest
+      - uses: julia-actions/julia-runtest@latest
