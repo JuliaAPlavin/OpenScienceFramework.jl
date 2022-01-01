@@ -177,7 +177,7 @@ function Base.readdir(::Type{File}, dir::Directory)
 end
 
 
-Base.read(f::File) = take!(Downloads.download(url(f), IOBuffer()))
+Base.read(f::File) = take!(Downloads.download(string(url(f)), IOBuffer()))
 Base.read(f::File, ::Type{String}) = String(read(f))
 
 
