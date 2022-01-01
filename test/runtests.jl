@@ -23,7 +23,10 @@ end
         dir = OSF.directory(proj, "mydir")
         @test !isdir(dir)
         dir = mkdir(dir)
+        dir_r = OSF.refresh(dir)
         @test isdir(dir)
+        @test isdir(dir_r)
+        @test abspath(dir) == abspath(dir_r)
         @test [basename(d) for d in readdir(OSF.Directory, proj)] == ["mydir"]
         
         @test readdir(OSF.Directory, dir) == []
@@ -39,14 +42,13 @@ end
         @test !isfile(file)
 
         write(file, "my file content")
-        file = OSF.file(dir, "myfile.txt")
+        file = OSF.refresh(file)
         @test [basename(d) for d in readdir(OSF.File, dir)] == ["myfile.txt"]
         @test isfile(file)
         @test read(file, String) == "my file content"
         @test length(OSF.versions(file)) == 1
 
         write(file, b"some new content")
-        file = OSF.file(dir, "myfile.txt")
         @test read(file, String) == "some new content"
         @test read(file) == b"some new content"
         @test length(OSF.versions(file)) == 2
@@ -61,7 +63,6 @@ end
         @test read(file, String) == "content from file"
         @test length(OSF.versions(file)) == 3
 
-        file = OSF.file(dir, "myfile.txt")
         mktemp() do path, _
             write(path, "more from file")
             @test_throws Exception cp(path, file)
@@ -72,7 +73,7 @@ end
 
         let fname = tempname()
             cp(file, fname)
-            file = OSF.file(dir, "myfile.txt")
+            file = OSF.refresh(file)
             @test_throws Exception cp(file, fname)
             cp(file, fname; force=true)
             @test read(fname, String) == "more from file"
@@ -80,6 +81,9 @@ end
 
         OSF.url(file)
         map(OSF.url, OSF.versions(file))
+
+        rm(file)
+        @test !isfile(OSF.refresh(file))
     end
 end
 

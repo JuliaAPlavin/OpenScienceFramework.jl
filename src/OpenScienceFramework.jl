@@ -110,8 +110,7 @@ function directory(parent::Directory, name::AbstractString)
     end
 end
 
-directory(f::FileNonexistent) = directory(project(f), dirname(abspath(f)); f.storage)
-directory(f::File) = directory(project(f), dirname(abspath(f)); f.storage)
+directory(f::Union{File, FileNonexistent}) = directory(project(f), dirname(abspath(f)); f.storage)
 
 function file(parent::Directory, name::AbstractString)
     @assert !occursin("/", strip(name, '/'))  name
@@ -128,6 +127,10 @@ function file(parent::Directory, name::AbstractString)
 end
 
 
+refresh(f::Union{File, FileNonexistent}) = file(directory(f), basename(f))
+refresh(d::Union{Directory, DirectoryNonexistent}) = directory(project(d), abspath(d); d.storage)
+
+
 function Base.mkdir(d::DirectoryNonexistent)
     @assert dirname(d.path) * "/" == d.path  d.path
     parent_d = directory(project(d), dirname(dirname(d.path)); d.storage)
@@ -138,6 +141,12 @@ end
 function Base.rm(d::Directory)
     API.delete(client(d), d.entity)
     return DirectoryNonexistent(project(d), d.storage, abspath(d))
+end
+
+Base.rm(f::FileNonexistent; force::Bool=false) = @assert force
+function Base.rm(f::File; force::Bool=false)
+    API.delete(client(f), f.entity)
+    return FileNonexistent(project(f), f.storage, abspath(f))
 end
 
 Base.cp(src::AbstractString, dst::FileNonexistent; force::Bool=false) = open(io -> write(dst, io), src, "r")

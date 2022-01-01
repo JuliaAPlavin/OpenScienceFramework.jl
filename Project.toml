@@ -1,7 +1,7 @@
 name = "OpenScienceFramework"
 uuid = "ca34efa3-7b06-4646-a985-ce0937c3739e"
 authors = ["Alexander Plavin <alexander@plav.in>"]
-version = "0.2.2"
+version = "0.2.3"
 
 [deps]
 Downloads = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
