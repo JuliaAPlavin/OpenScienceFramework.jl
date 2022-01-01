@@ -45,6 +45,7 @@ end
         file = OSF.refresh(file)
         @test [basename(d) for d in readdir(OSF.File, dir)] == ["myfile.txt"]
         @test isfile(file)
+        @test filesize(file) == length("my file content")
         @test read(file, String) == "my file content"
         @test length(OSF.versions(file)) == 1
 

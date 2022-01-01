@@ -67,6 +67,7 @@ Base.isdir(::File) = false
 Base.isfile(::File) = true
 Base.basename(d::File) = d.entity.attributes[:name]
 Base.abspath(d::File) = d.entity.attributes[:materialized_path]
+Base.filesize(d::File) = d.entity.attributes[:size]
 
 struct FileNonexistent
     project::Project
@@ -79,6 +80,7 @@ Base.isdir(::FileNonexistent) = false
 Base.isfile(::FileNonexistent) = false
 Base.basename(d::FileNonexistent) = basename(d.path)
 Base.abspath(d::FileNonexistent) = d.path
+Base.filesize(d::FileNonexistent) = 0
 
 
 function directory(proj::Project, path::AbstractString; storage=nothing)
