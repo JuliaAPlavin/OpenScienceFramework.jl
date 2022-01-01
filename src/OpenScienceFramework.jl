@@ -140,9 +140,18 @@ function Base.rm(d::Directory)
     return DirectoryNonexistent(project(d), d.storage, abspath(d))
 end
 
+Base.cp(src::AbstractString, dst::FileNonexistent; force::Bool=false) = open(io -> write(dst, io), src, "r")
+Base.cp(src::AbstractString, dst::File; force::Bool=false) = (@assert force; open(io -> write(dst, io), src, "r"))
+Base.cp(src::FileNonexistent, dst::AbstractString; force::Bool=false) = error("File doesn't exist in OSF: $(abspath(src))")
+Base.cp(src::File, dst::AbstractString; force::Bool=false) = let 
+    if !force && ispath(dst)
+        error("Already exists: $dst")
+    end
+    Downloads.download(string(url(src)), dst)
+end
+
 Base.write(f::File, content) = API.upload_file(client(f), f.entity, content)
 Base.write(f::FileNonexistent, content) = API.upload_file(client(f), directory(f).entity, basename(f), content)
-
 
 
 function Base.readdir(::Type{Directory}, proj::Project; storage=nothing)

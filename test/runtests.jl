@@ -61,6 +61,23 @@ end
         @test read(file, String) == "content from file"
         @test length(OSF.versions(file)) == 3
 
+        file = OSF.file(dir, "myfile.txt")
+        mktemp() do path, _
+            write(path, "more from file")
+            @test_throws Exception cp(path, file)
+            cp(path, file; force=true)
+        end
+        @test read(file, String) == "more from file"
+        @test length(OSF.versions(file)) == 4
+
+        let fname = tempname()
+            cp(file, fname)
+            file = OSF.file(dir, "myfile.txt")
+            @test_throws Exception cp(file, fname)
+            cp(file, fname; force=true)
+            @test read(fname, String) == "more from file"
+        end
+
         OSF.url(file)
         map(OSF.url, OSF.versions(file))
     end
