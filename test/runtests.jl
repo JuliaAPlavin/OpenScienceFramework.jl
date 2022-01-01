@@ -4,7 +4,7 @@ using Test
 
 
 project_title = "Test_OSFjl_project"
-token = "BiBvoIbBgNHIAE9VDrRlbxAw0h1AahVv4lQlkoixQlPLZPXFgW0BkUTHIarKUSW8nGH8AX"
+token = read(joinpath(@__DIR__, "osf_token"), String)
 
 @testset verbose=true "highlevel" begin
     @testset begin
@@ -37,6 +37,8 @@ token = "BiBvoIbBgNHIAE9VDrRlbxAw0h1AahVv4lQlkoixQlPLZPXFgW0BkUTHIarKUSW8nGH8AX"
         @test isfile(file)
         @test [basename(d) for d in readdir(OSF.File, dir)] == ["myfile.txt"]
         @test read(file, String) == "my file content"
+
+        url(file)
     end
 end
 
