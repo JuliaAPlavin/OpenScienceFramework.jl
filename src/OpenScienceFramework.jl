@@ -7,6 +7,7 @@ include("helpers.jl")
 end
 
 import Downloads
+import .API: Client
 
 include("highlevel.jl")
 
