@@ -165,11 +165,10 @@ end
 
         url_ver_2 = OSF.API.file_viewonly_url(versions[1], vo_link, :download)
         @test download_as_string(url_ver_2) == "updated content"
+        @test download_as_string(url_file_1) == "updated content"
 
         url_ver_1_after2 = OSF.API.file_viewonly_url(versions[2], vo_link, :download)
         @test download_as_string(url_ver_1_after2) == "test content"
-
-        @test_broken download_as_string(url_file_1) == "test content"  # should it hold? or the low-level API is too low level for this?
         @test download_as_string(url_ver_1) == "test content"
     end
 
