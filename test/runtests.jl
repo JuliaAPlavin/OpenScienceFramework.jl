@@ -10,6 +10,8 @@ else
     read(joinpath(@__DIR__, "OSF_TOKEN"), String)
 end
 
+download_as_string(url) = String(take!(Downloads.download(string(url), IOBuffer())))
+
 @testset verbose=true "highlevel" begin
     @testset begin
         osf = OSF.Client(; token)
@@ -48,12 +50,17 @@ end
         @test filesize(file) == length("my file content")
         @test read(file, String) == "my file content"
         @test length(OSF.versions(file)) == 1
+        url_ver1 = OSF.url(file)
+        @test download_as_string(url_ver1) == "my file content"
 
         write(file, b"some new content")
         @test read(file, String) == "some new content"
         @test read(file) == b"some new content"
         @test length(OSF.versions(file)) == 2
         @test read.(OSF.versions(file), String) == ["some new content", "my file content"]
+        url_ver2 = OSF.url(file)
+        @test download_as_string(url_ver1) == "my file content"
+        @test download_as_string(url_ver2) == "some new content"
 
         let fname = tempname()
             write(fname, "content from file")
@@ -71,6 +78,10 @@ end
         end
         @test read(file, String) == "more from file"
         @test length(OSF.versions(file)) == 4
+        url_ver4 = OSF.url(file)
+        @test download_as_string(url_ver1) == "my file content"
+        @test download_as_string(url_ver2) == "some new content"
+        @test download_as_string(url_ver4) == "more from file"
 
         let fname = tempname()
             cp(file, fname)
@@ -80,7 +91,6 @@ end
             @test read(fname, String) == "more from file"
         end
 
-        OSF.url(file)
         map(OSF.url, OSF.versions(file))
 
         rm(file)
@@ -143,25 +153,24 @@ end
         versions = OSF.API.relationship_complete(osf, file, :versions, etype=:file_versions)
         @test length(versions) == 1
 
-        url = OSF.API.file_viewonly_url(file, vo_link, :download)
-        content = String(take!(Downloads.download(string(url), IOBuffer())))
-        @test content == "test content"
+        url_file_1 = OSF.API.file_viewonly_url(file, vo_link, :download)
+        @test download_as_string(url_file_1) == "test content"
 
-        url = OSF.API.file_viewonly_url(only(versions), vo_link, :download)
-        content = String(take!(Downloads.download(string(url), IOBuffer())))
-        @test content == "test content"
+        url_ver_1 = OSF.API.file_viewonly_url(only(versions), vo_link, :download)
+        @test download_as_string(url_ver_1) == "test content"
 
         OSF.API.upload_file(osf, file, "updated content")
         versions = OSF.API.relationship_complete(osf, file, :versions, etype=:file_versions)
         @test length(versions) == 2
 
-        url = OSF.API.file_viewonly_url(versions[1], vo_link, :download)
-        content = String(take!(Downloads.download(string(url), IOBuffer())))
-        @test content == "updated content"
+        url_ver_2 = OSF.API.file_viewonly_url(versions[1], vo_link, :download)
+        @test download_as_string(url_ver_2) == "updated content"
 
-        url = OSF.API.file_viewonly_url(versions[2], vo_link, :download)
-        content = String(take!(Downloads.download(string(url), IOBuffer())))
-        @test content == "test content"
+        url_ver_1_after2 = OSF.API.file_viewonly_url(versions[2], vo_link, :download)
+        @test download_as_string(url_ver_1_after2) == "test content"
+
+        @test_broken download_as_string(url_file_1) == "test content"  # should it hold? or the low-level API is too low level for this?
+        @test download_as_string(url_ver_1) == "test content"
     end
 
     @testset "many files" begin
