@@ -1,6 +1,7 @@
 using OpenScienceFramework
 import Downloads
 using Test
+using Artifacts
 
 
 project_title = "Test_OSFjl_project"
@@ -11,6 +12,37 @@ else
 end
 
 download_as_string(url) = String(take!(Downloads.download(string(url), IOBuffer())))
+
+@testset "artifacts" begin
+    toml_file = "Artifacts.toml"
+    rm(toml_file; force=true)
+    
+    osf = OSF.Client(; token)
+    proj = OSF.project(osf; title=project_title)
+	osf_dir = OSF.directory(proj, "artifacts_dir") |> mkpath
+    rm.(readdir(OSF.File, osf_dir))
+    OSF.create_upload_artifact("my_artifact"; osf_dir, toml_file) do dir
+        write(joinpath(dir, "abc"), "def")
+    end
+    @test isfile(OSF.file(osf_dir, "my_artifact.tar.gz"))
+    let meta = artifact_meta("my_artifact", toml_file)
+        @test meta["git-tree-sha1"] == "3278d58d97443073cc3ef9a20bdfcd18ba820558"
+        @test meta["lazy"] == true
+        @test occursin(r"^https://osf.io/download/\w+/\?revision=1&view_only=\w+$", only(meta["download"])["url"])
+    end
+
+    tmpdir = mktempdir()
+    write(joinpath(tmpdir, "abc"), "xyz")
+    @test_throws Exception OSF.create_upload_artifact(tmpdir, "my_artifact"; osf_dir, toml_file)
+    OSF.create_upload_artifact(tmpdir, "my_artifact"; osf_dir, toml_file, update_existing=true)
+    @test OSF.file(osf_dir, "my_artifact.tar.gz") |> OSF.versions |> length == 2
+    let meta = artifact_meta("my_artifact", toml_file)
+        @test meta["git-tree-sha1"] == "7542f7396ca040373e65f868767cc4dfdf3708db"
+        @test occursin(r"^https://osf.io/download/\w+/\?revision=2&view_only=\w+$", only(meta["download"])["url"])
+    end
+
+    rm(toml_file; force=true)
+end
 
 @testset verbose=true "highlevel" begin
     osf = OSF.Client(; token)

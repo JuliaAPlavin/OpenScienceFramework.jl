@@ -1,13 +1,14 @@
 name = "OpenScienceFramework"
 uuid = "ca34efa3-7b06-4646-a985-ce0937c3739e"
 authors = ["Alexander Plavin <alexander@plav.in>"]
-version = "0.2.4"
+version = "0.2.5"
 
 [deps]
 Downloads = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
 JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
 Parameters = "d96e819e-fc66-5662-9728-84c9c7592b0a"
+Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 StructTypes = "856f2bd8-1eba-4b0a-8007-ebc267875bd4"
 
 [compat]

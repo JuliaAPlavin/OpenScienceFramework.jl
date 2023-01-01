@@ -122,6 +122,8 @@ refresh(f::Union{File, FileNonexistent}) = file(directory(f), basename(f))
 refresh(d::Union{Directory, DirectoryNonexistent}) = directory(project(d), abspath(d); d.storage)
 
 
+Base.mkpath(d::Directory) = d
+Base.mkpath(d::DirectoryNonexistent) = mkdir(d)
 function Base.mkdir(d::DirectoryNonexistent)
     @assert dirname(d.path) * "/" == d.path  d.path
     parent_d = directory(project(d), dirname(dirname(d.path)); d.storage)
