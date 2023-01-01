@@ -13,92 +13,90 @@ end
 download_as_string(url) = String(take!(Downloads.download(string(url), IOBuffer())))
 
 @testset verbose=true "highlevel" begin
-    @testset begin
-        osf = OSF.Client(; token)
-        proj = OSF.project(osf; title=project_title)
+    osf = OSF.Client(; token)
+    proj = OSF.project(osf; title=project_title)
 
-        @sync for d in readdir(OSF.Directory, proj)
-            @async rm(d)
-        end
-
-        @test readdir(OSF.Directory, proj) == []
-        dir = OSF.directory(proj, "mydir")
-        @test !isdir(dir)
-        dir = mkdir(dir)
-        dir_r = OSF.refresh(dir)
-        @test isdir(dir)
-        @test isdir(dir_r)
-        @test abspath(dir) == abspath(dir_r)
-        @test [basename(d) for d in readdir(OSF.Directory, proj)] == ["mydir"]
-        
-        @test readdir(OSF.Directory, dir) == []
-        subdir = OSF.directory(dir, "mysubdir")
-        @test !isdir(subdir)
-        subdir = mkdir(subdir)
-        @test isdir(subdir)
-        @test isdir(OSF.directory(dir, "mysubdir"))
-        @test [basename(d) for d in readdir(OSF.Directory, dir)] == ["mysubdir"]
-
-        @test [basename(d) for d in readdir(OSF.File, dir)] == []
-        file = OSF.file(dir, "myfile.txt")
-        @test !isfile(file)
-
-        write(file, "my file content")
-        file = OSF.refresh(file)
-        @test [basename(d) for d in readdir(OSF.File, dir)] == ["myfile.txt"]
-        @test isfile(file)
-        @test filesize(file) == length("my file content")
-        @test read(file, String) == "my file content"
-        @test length(OSF.versions(file)) == 1
-        url_file = OSF.url(file)
-        url_ver1 = OSF.url(OSF.versions(file) |> only)
-        @test download_as_string(url_ver1) == "my file content"
-
-        write(file, b"some new content")
-        @test read(file, String) == "some new content"
-        @test read(file) == b"some new content"
-        @test length(OSF.versions(file)) == 2
-        @test read.(OSF.versions(file), String) == ["some new content", "my file content"]
-        url_ver2 = OSF.url(OSF.versions(file) |> maximum)
-        @test download_as_string(url_file) == "some new content"
-        @test download_as_string(url_ver1) == "my file content"
-        @test download_as_string(url_ver2) == "some new content"
-
-        let fname = tempname()
-            write(fname, "content from file")
-            open(fname) do io
-                write(file, io)  # method specific to OSF.File - not in Base
-            end
-        end
-        @test read(file, String) == "content from file"
-        @test length(OSF.versions(file)) == 3
-
-        mktemp() do path, _
-            write(path, "more from file")
-            @test_throws Exception cp(path, file)
-            cp(path, file; force=true)
-        end
-        @test read(file, String) == "more from file"
-        @test length(OSF.versions(file)) == 4
-        url_ver4 = OSF.url(OSF.versions(file) |> maximum)
-        @test download_as_string(url_ver1) == "my file content"
-        @test download_as_string(url_ver2) == "some new content"
-        @test download_as_string(url_ver4) == "more from file"
-        @test download_as_string(url_file) == "more from file"
-
-        let fname = tempname()
-            cp(file, fname)
-            file = OSF.refresh(file)
-            @test_throws Exception cp(file, fname)
-            cp(file, fname; force=true)
-            @test read(fname, String) == "more from file"
-        end
-
-        map(OSF.url, OSF.versions(file))
-
-        rm(file)
-        @test !isfile(OSF.refresh(file))
+    @sync for d in readdir(OSF.Directory, proj)
+        @async rm(d)
     end
+
+    @test readdir(OSF.Directory, proj) == []
+    dir = OSF.directory(proj, "mydir")
+    @test !isdir(dir)
+    dir = mkdir(dir)
+    dir_r = OSF.refresh(dir)
+    @test isdir(dir)
+    @test isdir(dir_r)
+    @test abspath(dir) == abspath(dir_r)
+    @test [basename(d) for d in readdir(OSF.Directory, proj)] == ["mydir"]
+    
+    @test readdir(OSF.Directory, dir) == []
+    subdir = OSF.directory(dir, "mysubdir")
+    @test !isdir(subdir)
+    subdir = mkdir(subdir)
+    @test isdir(subdir)
+    @test isdir(OSF.directory(dir, "mysubdir"))
+    @test [basename(d) for d in readdir(OSF.Directory, dir)] == ["mysubdir"]
+
+    @test [basename(d) for d in readdir(OSF.File, dir)] == []
+    file = OSF.file(dir, "myfile.txt")
+    @test !isfile(file)
+
+    write(file, "my file content")
+    file = OSF.refresh(file)
+    @test [basename(d) for d in readdir(OSF.File, dir)] == ["myfile.txt"]
+    @test isfile(file)
+    @test filesize(file) == length("my file content")
+    @test read(file, String) == "my file content"
+    @test length(OSF.versions(file)) == 1
+    url_file = OSF.url(file)
+    url_ver1 = OSF.url(OSF.versions(file) |> only)
+    @test download_as_string(url_ver1) == "my file content"
+
+    write(file, b"some new content")
+    @test read(file, String) == "some new content"
+    @test read(file) == b"some new content"
+    @test length(OSF.versions(file)) == 2
+    @test read.(OSF.versions(file), String) == ["some new content", "my file content"]
+    url_ver2 = OSF.url(OSF.versions(file) |> maximum)
+    @test download_as_string(url_file) == "some new content"
+    @test download_as_string(url_ver1) == "my file content"
+    @test download_as_string(url_ver2) == "some new content"
+
+    let fname = tempname()
+        write(fname, "content from file")
+        open(fname) do io
+            write(file, io)  # method specific to OSF.File - not in Base
+        end
+    end
+    @test read(file, String) == "content from file"
+    @test length(OSF.versions(file)) == 3
+
+    mktemp() do path, _
+        write(path, "more from file")
+        @test_throws Exception cp(path, file)
+        cp(path, file; force=true)
+    end
+    @test read(file, String) == "more from file"
+    @test length(OSF.versions(file)) == 4
+    url_ver4 = OSF.url(OSF.versions(file) |> maximum)
+    @test download_as_string(url_ver1) == "my file content"
+    @test download_as_string(url_ver2) == "some new content"
+    @test download_as_string(url_ver4) == "more from file"
+    @test download_as_string(url_file) == "more from file"
+
+    let fname = tempname()
+        cp(file, fname)
+        file = OSF.refresh(file)
+        @test_throws Exception cp(file, fname)
+        cp(file, fname; force=true)
+        @test read(fname, String) == "more from file"
+    end
+
+    map(OSF.url, OSF.versions(file))
+
+    rm(file)
+    @test !isfile(OSF.refresh(file))
 end
 
 @testset verbose=true "lowlevel" begin
