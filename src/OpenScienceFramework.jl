@@ -9,6 +9,9 @@ end
 import Downloads
 import .API: Client
 
+const OSF = OpenScienceFramework
+export OSF
+
 include("highlevel.jl")
 
 end

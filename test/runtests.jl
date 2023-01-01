@@ -1,4 +1,4 @@
-import OpenScienceFramework as OSF
+using OpenScienceFramework
 import Downloads
 using Test
 
