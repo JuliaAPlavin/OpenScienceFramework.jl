@@ -50,7 +50,8 @@ download_as_string(url) = String(take!(Downloads.download(string(url), IOBuffer(
         @test filesize(file) == length("my file content")
         @test read(file, String) == "my file content"
         @test length(OSF.versions(file)) == 1
-        url_ver1 = OSF.url(file)
+        url_file = OSF.url(file)
+        url_ver1 = OSF.url(OSF.versions(file) |> only)
         @test download_as_string(url_ver1) == "my file content"
 
         write(file, b"some new content")
@@ -58,7 +59,8 @@ download_as_string(url) = String(take!(Downloads.download(string(url), IOBuffer(
         @test read(file) == b"some new content"
         @test length(OSF.versions(file)) == 2
         @test read.(OSF.versions(file), String) == ["some new content", "my file content"]
-        url_ver2 = OSF.url(file)
+        url_ver2 = OSF.url(OSF.versions(file) |> maximum)
+        @test download_as_string(url_file) == "some new content"
         @test download_as_string(url_ver1) == "my file content"
         @test download_as_string(url_ver2) == "some new content"
 
@@ -78,10 +80,11 @@ download_as_string(url) = String(take!(Downloads.download(string(url), IOBuffer(
         end
         @test read(file, String) == "more from file"
         @test length(OSF.versions(file)) == 4
-        url_ver4 = OSF.url(file)
+        url_ver4 = OSF.url(OSF.versions(file) |> maximum)
         @test download_as_string(url_ver1) == "my file content"
         @test download_as_string(url_ver2) == "some new content"
         @test download_as_string(url_ver4) == "more from file"
+        @test download_as_string(url_file) == "more from file"
 
         let fname = tempname()
             cp(file, fname)
