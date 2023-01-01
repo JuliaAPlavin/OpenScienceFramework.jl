@@ -208,6 +208,14 @@ struct FileVersion
     entity::API.Entity{:file_versions}
 end
 
+revision_number(f::FileVersion) = parse(Int, f.entity.id)
+
+Base.isless(a::FileVersion, b::FileVersion) = if a.file == b.file
+    isless(revision_number(a), revision_number(b))
+else
+    error("Cannot compare versions of different files: $(abspath(a.file)) vs $(abspath(b.file))")
+end
+
 project(x::FileVersion) = project(x.file)
 
 versions(f::File) = [
