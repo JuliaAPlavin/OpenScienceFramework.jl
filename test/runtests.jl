@@ -255,8 +255,5 @@ import Aqua
 import CompatHelperLocal
 @testset begin
     CompatHelperLocal.@check()
-    Aqua.test_ambiguities(OSF, recursive=false)
-    Aqua.test_unbound_args(OSF)
-    Aqua.test_undefined_exports(OSF)
-    Aqua.test_stale_deps(OSF)
+    Aqua.test_all(OSF)
 end
