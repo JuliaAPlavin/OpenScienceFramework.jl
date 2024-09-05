@@ -72,6 +72,18 @@ Base.abspath(d::FileNonexistent) = d.path
 Base.filesize(d::FileNonexistent) = 0
 
 
+Base.islink(a::Union{Directory,File}) = false
+Base.joinpath(a::Union{Directory,File}) = a
+function Base.joinpath(a::Directory, b::Union{Directory,File})
+    pa, pb = abspath(a), abspath(b)
+    if startswith(pb, pa)
+        return b
+    else
+        error("Cannot `joinpath()` OSF entries $pa and $pb.")
+    end
+end
+
+
 function directory(proj::Project, path::AbstractString; storage=nothing)
     storage_e = (@__MODULE__).storage(proj, storage)
     path = endswith(path, "/") ? path : "$(path)/"
@@ -156,33 +168,25 @@ Base.write(f::File, content) = API.upload_file(client(f), f.entity, content)
 Base.write(f::FileNonexistent, content) = API.upload_file(client(f), directory(f).entity, basename(f), content)
 
 
-function Base.readdir(::Type{Directory}, proj::Project; storage=nothing)
+function Base.readdir(proj::Project; storage=nothing)
     storage_e = (@__MODULE__).storage(proj, storage)
     entities = API.relationship_complete(client(proj), storage_e, :files)
     [
-        Directory(proj, storage_e, ent)
+        haskey(ent.relationships, :files) ? Directory(proj, storage_e, ent) : File(proj, storage_e, ent)
         for ent in entities
-        if haskey(ent.relationships, :files)
     ]
 end
 
-function Base.readdir(::Type{Directory}, dir::Directory)
+function Base.readdir(dir::Directory)
     entities = API.relationship_complete(client(dir), dir.entity, :files)
     [
-        Directory(project(dir), dir.storage, ent)
+        haskey(ent.relationships, :files) ? Directory(project(dir), dir.storage, ent) : File(project(dir), dir.storage, ent)
         for ent in entities
-        if haskey(ent.relationships, :files)
     ]
 end
 
-function Base.readdir(::Type{File}, dir::Directory)
-    entities = API.relationship_complete(client(dir), dir.entity, :files)
-    [
-        File(project(dir), dir.storage, ent)
-        for ent in entities
-        if !haskey(ent.relationships, :files)
-    ]
-end
+Base.readdir(::Type{Directory}, dir::Union{Project,Directory}; kwargs...) = filter(isdir, readdir(dir); kwargs...)
+Base.readdir(::Type{File}, dir::Union{Project,Directory}; kwargs...) = filter(isfile, readdir(dir); kwargs...)
 
 
 struct ViewOnlyLink
