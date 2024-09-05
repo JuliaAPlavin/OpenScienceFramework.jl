@@ -42,4 +42,11 @@ file = OSF.file(dir, "myfile.txt")
 OSF.url(file)  # get the URL for anonymous downloading
 ```
 
+## Example for read-only access
+
+```julia
+proj = OSF.project("hk9g4")
+collect(walkdir(proj))
+```
+
 There is also an internal module `OSF.API` with lower-level API functions. They are not covered by semver and may change arbitrarily.
