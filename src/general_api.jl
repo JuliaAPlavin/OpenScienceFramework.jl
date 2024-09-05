@@ -19,7 +19,7 @@ result_to(T::Type{Nothing}, r::HTTP.Response) = @assert isempty(r.body);
 result_to(T::Type{String}, r::HTTP.Response) = String(r.body)
 result_to(T::Type{Dict}, r::HTTP.Response) = copy(JSON.read(String(r.body)))
 result_to(T::Type, r::HTTP.Response) = JSON.read(String(r.body), T)
-resource_url(osf::Client, x::String) = occursin(r"^https?://", x) ? x : joinpath("https://api.osf.io", "v$(osf.api_version)", x)
+resource_url(osf::Client, x::String) = occursin(r"^https?://", x) ? x : "https://api.osf.io/v$(osf.api_version)/$x"
 
 function request(osf::Client, ::Val{:GET}, resource, T)::T
     r = HTTP.get(resource_url(osf, resource), headers(osf))
