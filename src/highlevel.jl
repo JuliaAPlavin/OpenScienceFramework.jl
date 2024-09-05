@@ -72,9 +72,16 @@ Base.abspath(d::FileNonexistent) = d.path
 Base.filesize(d::FileNonexistent) = 0
 
 
+Base.show(io::IO, p::Project) = print(io, "OSF Project `$(p.entity.attributes[:title])`, id $(p.entity.id)")
+Base.show(io::IO, x::Directory) = print(io, "OSF Directory `$(abspath(x))`")
+Base.show(io::IO, x::File) = print(io, "OSF File `$(abspath(x))` ($(Base.format_bytes(filesize(x))))")
+Base.show(io::IO, x::DirectoryNonexistent) = print(io, "OSF Directory `$(x.path)` (doesn't exist)")
+Base.show(io::IO, x::FileNonexistent) = print(io, "OSF File `$(x.path)` (doesn't exist)")
+
+
 Base.islink(a::Union{Directory,File}) = false
 Base.joinpath(a::Union{Directory,File}) = a
-function Base.joinpath(a::Directory, b::Union{Directory,File})
+function Base.joinpath(a::Directory, b::Union{Directory,File,DirectoryNonexistent,FileNonexistent})
     pa, pb = abspath(a), abspath(b)
     if startswith(pb, pa)
         return b
