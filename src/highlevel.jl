@@ -13,11 +13,18 @@ function project(c::API.Client; user::String="me", title::String)
     Project(c, proj_e)
 end
 
-storage(proj::Project, ::Nothing) = storage(proj, "osfstorage")
-storage(proj::Project, storage::String) = let
-    storages = API.relationship(client(proj), proj.entity, :files).data
-    only(filter(s -> s.attributes[:name] == storage, storages))
+function project(id::String)
+    c = OSF.Client()
+    ent = OSF.API.get_entity(c, :nodes, id)
+    return OSF.Project(c, ent)
 end
+
+storage(proj::Project, ::Nothing) = storage(proj, "osfstorage")
+storage(proj::Project, storage::String) =
+    let
+        storages = API.relationship(client(proj), proj.entity, :files).data
+        only(filter(s -> s.attributes[:name] == storage, storages))
+    end
 storage(::Project, storage::API.Entity{:files}) = storage
 
 struct Directory
@@ -106,10 +113,10 @@ function directory(proj::Project, path::AbstractString; storage=nothing)
 end
 
 function directory(parent::Directory, name::AbstractString)
-    @assert !occursin("/", strip(name, '/'))  name
+    @assert !occursin("/", strip(name, '/')) name
     path = "$(rstrip(abspath(parent), '/'))/$(lstrip(name, '/'))"  # not joinpath() because on windows it uses \
     path = endswith(path, "/") ? path : "$(path)/"
-    @assert startswith(path, "/")  path
+    @assert startswith(path, "/") path
     dir_e = API.find_by_path(client(parent), parent.entity, path)
     if isnothing(dir_e)
         return DirectoryNonexistent(project(parent), parent.storage, path)
@@ -120,12 +127,12 @@ function directory(parent::Directory, name::AbstractString)
     end
 end
 
-directory(f::Union{File, FileNonexistent}) = directory(project(f), dirname(abspath(f)); f.storage)
+directory(f::Union{File,FileNonexistent}) = directory(project(f), dirname(abspath(f)); f.storage)
 
 function file(parent::Directory, name::AbstractString)
-    @assert !occursin("/", strip(name, '/'))  name
+    @assert !occursin("/", strip(name, '/')) name
     path = "$(rstrip(abspath(parent), '/'))/$(lstrip(name, '/'))"  # not joinpath() because on windows it uses \
-    @assert !endswith(path, "/") && startswith(path, "/")  path
+    @assert !endswith(path, "/") && startswith(path, "/") path
     entity = API.find_by_path(client(parent), parent.entity, path)
     if isnothing(entity)
         return FileNonexistent(project(parent), parent.storage, path)
@@ -137,14 +144,14 @@ function file(parent::Directory, name::AbstractString)
 end
 
 
-refresh(f::Union{File, FileNonexistent}) = file(directory(f), basename(f))
-refresh(d::Union{Directory, DirectoryNonexistent}) = directory(project(d), abspath(d); d.storage)
+refresh(f::Union{File,FileNonexistent}) = file(directory(f), basename(f))
+refresh(d::Union{Directory,DirectoryNonexistent}) = directory(project(d), abspath(d); d.storage)
 
 
 Base.mkpath(d::Directory) = d
 Base.mkpath(d::DirectoryNonexistent) = mkdir(d)
 function Base.mkdir(d::DirectoryNonexistent)
-    @assert dirname(d.path) * "/" == d.path  d.path
+    @assert dirname(d.path) * "/" == d.path d.path
     parent_d = directory(project(d), dirname(dirname(d.path)); d.storage)
     API.create_folder(client(d), parent_d.entity, basename(d))
     return directory(project(d), d.path; d.storage)
@@ -164,12 +171,13 @@ end
 Base.cp(src::AbstractString, dst::FileNonexistent; force::Bool=false) = open(io -> write(dst, io), src, "r")
 Base.cp(src::AbstractString, dst::File; force::Bool=false) = (@assert force; open(io -> write(dst, io), src, "r"))
 Base.cp(src::FileNonexistent, dst::AbstractString; force::Bool=false) = error("File doesn't exist in OSF: $(abspath(src))")
-Base.cp(src::File, dst::AbstractString; force::Bool=false) = let 
-    if !force && ispath(dst)
-        error("Already exists: $dst")
+Base.cp(src::File, dst::AbstractString; force::Bool=false) =
+    let
+        if !force && ispath(dst)
+            error("Already exists: $dst")
+        end
+        Downloads.download(string(url(src)), dst)
     end
-    Downloads.download(string(url(src)), dst)
-end
 
 Base.write(f::File, content) = API.upload_file(client(f), f.entity, content)
 Base.write(f::FileNonexistent, content) = API.upload_file(client(f), directory(f).entity, basename(f), content)
@@ -212,11 +220,12 @@ end
 
 revision_number(f::FileVersion) = parse(Int, f.entity.id)
 
-Base.isless(a::FileVersion, b::FileVersion) = if a.file == b.file
-    isless(revision_number(a), revision_number(b))
-else
-    error("Cannot compare versions of different files: $(abspath(a.file)) vs $(abspath(b.file))")
-end
+Base.isless(a::FileVersion, b::FileVersion) =
+    if a.file == b.file
+        isless(revision_number(a), revision_number(b))
+    else
+        error("Cannot compare versions of different files: $(abspath(a.file)) vs $(abspath(b.file))")
+    end
 
 project(x::FileVersion) = project(x.file)
 
@@ -230,3 +239,46 @@ url(f) = url(f, only(view_only_links(project(f))))
 
 Base.read(f::Union{File,FileVersion}) = take!(Downloads.download(string(url(f)), IOBuffer()))
 Base.read(f::Union{File,FileVersion}, ::Type{String}) = String(read(f))
+
+
+
+
+function Base.walkdir(dir::Union{Directory,Project}; topdown=true, onerror=throw)
+    function _walkdir(chnl, dir)
+        tryf(f, p) =
+            try
+                f(p)
+            catch err
+                isa(err, IOError) || rethrow()
+                try
+                    onerror(err)
+                catch err2
+                    close(chnl, err2)
+                end
+                return
+            end
+        entries = tryf(readdir, dir)
+        entries === nothing && return
+        dirs = Vector{Directory}()
+        files = Vector{File}()
+        for entry in entries
+            # If we're not following symlinks, then treat all symlinks as files
+            if !something(tryf(isdir, entry), false)
+                push!(files, entry)
+            else
+                push!(dirs, entry)
+            end
+        end
+        if topdown
+            push!(chnl, (dir, dirs, files))
+        end
+        for d in dirs
+            _walkdir(chnl, d)
+        end
+        if !topdown
+            push!(chnl, (dir, dirs, files))
+        end
+        nothing
+    end
+    return Channel{Tuple{Union{Project,Directory},Vector{Directory},Vector{File}}}(chnl -> _walkdir(chnl, dir))
+end
