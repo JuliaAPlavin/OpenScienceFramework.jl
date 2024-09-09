@@ -40,9 +40,9 @@ end
 mutable struct Entity{T}
     type::String
     id::String
-    links::Dict{Symbol,String}
-    attributes::Dict{Symbol,Any}
-    relationships::Dict{Symbol,Dict}
+    links::Dict{Symbol, String}
+    attributes::Dict{Symbol, Any}
+    relationships::Dict{Symbol, Dict}
     Entity{T}() where {T} = new()
 
     function Entity{T}(e::Entity{nothing}) where {T}
@@ -94,7 +94,7 @@ is_complete(ec::EntityCollection) = length(ec.data) == ec.links["meta"]["total"]
 has_next(ec::EntityCollection) = !isnothing(ec.links["next"])
 get_next(osf::Client, ec::EntityCollection{T}) where {T} = get_collection(osf, ec.links["next"], etype=T)
 
-function relationship(osf::Client, entity::Entity, relationship::Symbol; etype::Union{Nothing,Symbol}=relationship, filters::Vector=[])
+function relationship(osf::Client, entity::Entity, relationship::Symbol; etype::Union{Nothing, Symbol}=relationship, filters::Vector=[])
     return get_collection(osf, entity.relationships[relationship]["links"]["related"]["href"]; filters, etype=etype)
 end
 

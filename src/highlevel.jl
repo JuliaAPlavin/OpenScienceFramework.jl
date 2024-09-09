@@ -113,10 +113,10 @@ function directory(proj::Project, path::AbstractString; storage=nothing)
 end
 
 function directory(parent::Directory, name::AbstractString)
-    @assert !occursin("/", strip(name, '/')) name
+    @assert !occursin("/", strip(name, '/'))  name
     path = "$(rstrip(abspath(parent), '/'))/$(lstrip(name, '/'))"  # not joinpath() because on windows it uses \
     path = endswith(path, "/") ? path : "$(path)/"
-    @assert startswith(path, "/") path
+    @assert startswith(path, "/")  path
     dir_e = API.find_by_path(client(parent), parent.entity, path)
     if isnothing(dir_e)
         return DirectoryNonexistent(project(parent), parent.storage, path)
@@ -127,12 +127,12 @@ function directory(parent::Directory, name::AbstractString)
     end
 end
 
-directory(f::Union{File,FileNonexistent}) = directory(project(f), dirname(abspath(f)); f.storage)
+directory(f::Union{File, FileNonexistent}) = directory(project(f), dirname(abspath(f)); f.storage)
 
 function file(parent::Directory, name::AbstractString)
-    @assert !occursin("/", strip(name, '/')) name
+    @assert !occursin("/", strip(name, '/'))  name
     path = "$(rstrip(abspath(parent), '/'))/$(lstrip(name, '/'))"  # not joinpath() because on windows it uses \
-    @assert !endswith(path, "/") && startswith(path, "/") path
+    @assert !endswith(path, "/") && startswith(path, "/")  path
     entity = API.find_by_path(client(parent), parent.entity, path)
     if isnothing(entity)
         return FileNonexistent(project(parent), parent.storage, path)
@@ -144,14 +144,14 @@ function file(parent::Directory, name::AbstractString)
 end
 
 
-refresh(f::Union{File,FileNonexistent}) = file(directory(f), basename(f))
-refresh(d::Union{Directory,DirectoryNonexistent}) = directory(project(d), abspath(d); d.storage)
+refresh(f::Union{File, FileNonexistent}) = file(directory(f), basename(f))
+refresh(d::Union{Directory, DirectoryNonexistent}) = directory(project(d), abspath(d); d.storage)
 
 
 Base.mkpath(d::Directory) = d
 Base.mkpath(d::DirectoryNonexistent) = mkdir(d)
 function Base.mkdir(d::DirectoryNonexistent)
-    @assert dirname(d.path) * "/" == d.path d.path
+    @assert dirname(d.path) * "/" == d.path  d.path
     parent_d = directory(project(d), dirname(dirname(d.path)); d.storage)
     API.create_folder(client(d), parent_d.entity, basename(d))
     return directory(project(d), d.path; d.storage)
@@ -171,14 +171,11 @@ end
 Base.cp(src::AbstractString, dst::FileNonexistent; force::Bool=false) = open(io -> write(dst, io), src, "r")
 Base.cp(src::AbstractString, dst::File; force::Bool=false) = (@assert force; open(io -> write(dst, io), src, "r"))
 Base.cp(src::FileNonexistent, dst::AbstractString; force::Bool=false) = error("File doesn't exist in OSF: $(abspath(src))")
-Base.cp(src::File, dst::AbstractString; force::Bool=false) =
-    let
-        if !force && ispath(dst)
-            error("Already exists: $dst")
-        end
+Base.cp(src::File, dst::AbstractString; force::Bool=false) = let 
+    if !force && ispath(dst)
+        error("Already exists: $dst")
         Downloads.download(string(url(src)), dst)
-    end
-
+end
 Base.write(f::File, content) = API.upload_file(client(f), f.entity, content)
 Base.write(f::FileNonexistent, content) = API.upload_file(client(f), directory(f).entity, basename(f), content)
 
@@ -220,12 +217,11 @@ end
 
 revision_number(f::FileVersion) = parse(Int, f.entity.id)
 
-Base.isless(a::FileVersion, b::FileVersion) =
-    if a.file == b.file
-        isless(revision_number(a), revision_number(b))
-    else
-        error("Cannot compare versions of different files: $(abspath(a.file)) vs $(abspath(b.file))")
-    end
+Base.isless(a::FileVersion, b::FileVersion) = if a.file == b.file
+    isless(revision_number(a), revision_number(b))
+else
+    error("Cannot compare versions of different files: $(abspath(a.file)) vs $(abspath(b.file))")
+end
 
 project(x::FileVersion) = project(x.file)
 
