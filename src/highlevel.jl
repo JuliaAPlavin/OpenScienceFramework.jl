@@ -174,7 +174,8 @@ Base.cp(src::FileNonexistent, dst::AbstractString; force::Bool=false) = error("F
 Base.cp(src::File, dst::AbstractString; force::Bool=false) = let 
     if !force && ispath(dst)
         error("Already exists: $dst")
-        Downloads.download(string(url(src)), dst)
+    end
+    Downloads.download(string(url(src)), dst)
 end
 Base.write(f::File, content) = API.upload_file(client(f), f.entity, content)
 Base.write(f::FileNonexistent, content) = API.upload_file(client(f), directory(f).entity, basename(f), content)
