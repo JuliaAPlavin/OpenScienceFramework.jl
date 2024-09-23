@@ -175,7 +175,16 @@ Base.cp(src::File, dst::AbstractString; force::Bool=false) = let
     if !force && ispath(dst)
         error("Already exists: $dst")
     end
-    Downloads.download(string(url(src)), dst)
+                    Downloads.download(string(url(src)), dst)
+end
+function Base.cp(src::Directory, dst::AbstractString;force::Bool=false) 
+    if !force && ispath(dst)
+        error("Already exists: $dst")
+    end
+    mkpath(dst)
+    for f in readdir(src)
+        cp(f, joinpath(dst, basename(f));force)
+    end
 end
 Base.write(f::File, content) = API.upload_file(client(f), f.entity, content)
 Base.write(f::FileNonexistent, content) = API.upload_file(client(f), directory(f).entity, basename(f), content)
@@ -232,7 +241,14 @@ versions(f::File) = [
 ]
 
 url(f::Union{File,FileVersion}, vo_link::ViewOnlyLink) = API.file_viewonly_url(f.entity, vo_link.entity, :download)
-url(f) = url(f, only(view_only_links(project(f))))
+function url(f)
+    try 
+        return f.entity.links[:download]  # public open link
+    catch
+        return url(f, only(view_only_links(project(f)))) # view only link with credentials
+    end
+end
+
 
 Base.read(f::Union{File,FileVersion}) = take!(Downloads.download(string(url(f)), IOBuffer()))
 Base.read(f::Union{File,FileVersion}, ::Type{String}) = String(read(f))

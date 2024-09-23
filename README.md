@@ -47,6 +47,10 @@ OSF.url(file)  # get the URL for anonymous downloading
 ```julia
 proj = OSF.project("hk9g4")
 collect(walkdir(proj))
+
+# to download a folder / file just copy it:
+remote_dir = readdir(proj)
+cp(remote_dir[1],mktempdir(x->x)) # the x->x is only needed to immediately delete the folder again, else we would need (cp(...;force=true)) to overwrite the already existing folder.
 ```
 
 

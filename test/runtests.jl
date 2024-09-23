@@ -272,3 +272,54 @@ import CompatHelperLocal
     CompatHelperLocal.@check()
     Aqua.test_all(OSF)
 end
+
+
+@testset "read_public" begin 
+
+    node_id = "hk9g4"
+    proj = OSF.project("hk9g4")
+
+    @test typeof(proj) == OSF.Project
+    d = readdir(proj)
+    @test length(d) == 4
+    @test typeof(d[1]) == OSF.Directory && typeof(d[4]) == OSF.Directory
+    @test typeof(d[2]) == OSF.File && typeof(d[3]) == OSF.File
+    @test basename(d[2]) == "photoB.jpg"
+    dirstruct_iterator = walkdir(proj)
+    @test isa(dirstruct_iterator,Channel)
+    dirstruct = collect(dirstruct_iterator)
+    @test length(dirstruct) == 5
+    @test length(dirstruct[1][3]) == 2
+    @test basename([3][1]) == "folderA"
+    @test length(dirstruct[3][2]) == 2 # two folders, A1 and A2
+    @test length(dirstruct[3][3]) == 2 # two folders, folderA & photoA
+
+
+    # test downloads
+    @testset "public downloads" begin
+        @test read(d[3],String) == "this is folder"
+        @test read(dirstruct[4][3][1],String) == "this is folderA2"
+
+        tmp = mktempdir()
+        cp(d[1],joinpath(tmp,basename(d[1])))
+        @test isdir(joinpath(tmp,basename(d[1])))
+
+
+        @test_throws "Already exists:" cp(d[1],joinpath(tmp,basename(d[1]))) # exists already -> error
+        cp(d[1],joinpath(tmp,basename(d[1]));force=true) # with force it works again :)
+
+        # test downloading a whole folder with subfolders
+        cp(d[4],joinpath(tmp,basename(d[4]));force=true)
+        local_d4 = collect(walkdir(joinpath(tmp,basename(d[4]))))
+        remote_d4 = collect(walkdir(d[4]))
+
+        @test length(local_d4) == length(remote_d4)
+        @test sort(local_d4[1][3]) == sort(basename.(remote_d4[1][3]))
+        @test sort(local_d4[2][3]) == sort(basename.(remote_d4[3][3]))
+        @test sort(local_d4[3][3]) == sort(basename.(remote_d4[2][3]))
+
+        @test read(joinpath(local_d4[2][1],local_d4[2][3][1]),String) == "this is folderA1"
+    end
+
+
+end
