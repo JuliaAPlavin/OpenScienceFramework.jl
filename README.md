@@ -4,42 +4,32 @@ Interface to the The Open Science Framework ([OSF](https://osf.io/)) API.
 
 # Usage
 
-Example of using the high-level API:
+`OpenScienceFramework.jl` supports Julia Filesystem API:
 
 ```julia
 import OpenScienceFramework as OSF
 
-osf = OSF.Client(; token="...")  # put your OSF token here
-proj = OSF.project(osf; title="MyProject")
+# public OSF projects:
+proj = OSF.project(OSF.Client(), "<project id>")
 
-for d in readdir(OSF.Directory, proj)
-    rm(d)
-end
+readdir(proj)
 
-@test readdir(OSF.Directory, proj) == []
-dir = OSF.directory(proj, "mydir")
-@test !isdir(dir)
-dir = mkdir(dir)
-@test isdir(dir)
-@test [basename(d) for d in readdir(OSF.Directory, proj)] == ["mydir"]
+read(readdir(proj)[1], String)
 
-@test readdir(OSF.Directory, dir) == []
-subdir = OSF.directory(dir, "mysubdir")
-@test !isdir(subdir)
-subdir = mkdir(subdir)
-@test isdir(subdir)
-@test [basename(d) for d in readdir(OSF.Directory, dir)] == ["mysubdir"]
+cp(readdir(proj)[1], "/some/local/path")
 
-@test [basename(d) for d in readdir(OSF.File, dir)] == []
-file = OSF.file(dir, "myfile.txt")
-@test !isfile(file)
-write(file, "my file content")
-file = OSF.file(dir, "myfile.txt")
-@test isfile(file)
-@test [basename(d) for d in readdir(OSF.File, dir)] == ["myfile.txt"]
-@test read(file, String) == "my file content"
+OSF.url(readdir(proj)[1])
 
-OSF.url(file)  # get the URL for anonymous downloading
+# private OSF projects:
+proj = OSF.project(OSF.Client(; token="your OSF token"); title="MyProject")
+
+basename.(readdir(proj))
+
+mkdir(joinpath(readdir(proj)[1], "newdir"))
+
+cp("local_file", OSF.file(readdir(proj)[1], "remote_file"))
+
+OSF.url(readdir(proj)[1])
 ```
 
 There is also an internal module `OSF.API` with lower-level API functions. They are not covered by semver and may change arbitrarily.
