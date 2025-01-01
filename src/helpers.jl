@@ -10,6 +10,7 @@ function find_by_path(osf::Client, root::Entity{:files}, path::String)
         path == "/" && return root
     else
         root.attributes[:materialized_path] == path && return root
+        startswith(path, root.attributes[:materialized_path]) || return nothing
     end
     root.attributes[:kind] == "file" && return nothing
     files = relationship_complete(osf, root, :files)
