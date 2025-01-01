@@ -5,6 +5,8 @@ end
 client(x::Project) = x.client
 client(x) = client(project(x))
 
+project(c::API.Client, id::String) = OSF.Project(c, OSF.API.get_entity(c, :nodes, id))
+
 function project(c::API.Client; user::String="me", title::String)
     user_e = API.get_entity(c, :users, user)
     projs = API.relationship(c, user_e, :nodes, filters=["title" => title]).data
@@ -288,7 +290,9 @@ versions(f::File) = [
 ]
 
 url(f::Union{File,FileVersion}, vo_link::ViewOnlyLink) = API.file_viewonly_url(f.entity, vo_link.entity, :download)
-url(f) = url(f, only(view_only_links(project(f))))
+url(f) = project(f).entity.attributes[:public] ?
+    f.entity.links[:download] :  # public download link
+    url(f, only(view_only_links(project(f))))  # project-specific view-only link
 
 Base.read(f::Union{File,FileVersion}) = take!(Downloads.download(string(url(f)), IOBuffer()))
 Base.read(f::Union{File,FileVersion}, ::Type{String}) = String(read(f))

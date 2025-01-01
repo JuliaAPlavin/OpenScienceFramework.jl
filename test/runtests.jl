@@ -44,7 +44,42 @@ download_as_string(url) = String(take!(Downloads.download(string(url), IOBuffer(
     rm(toml_file; force=true)
 end
 
-@testset verbose=true "highlevel" begin
+@testset verbose=true "highlevel - anonymous" begin
+    proj = OSF.project(OSF.Client(), "hk9g4")::OSF.Project
+
+    d = readdir(proj)
+    @test length(d) == 4
+    @test typeof(d[1]) == OSF.Directory && typeof(d[4]) == OSF.Directory
+    @test typeof(d[2]) == OSF.File && typeof(d[3]) == OSF.File
+    @test abspath.(d) == ["/folderB/", "/photoB.jpg", "/folder.txt", "/folderA/"]
+    
+    wd = walkdir(proj) |> collect
+    @test map(x -> basename(x[1]), wd) == ["", "folderB", "folderA", "folderA2", "folderA1"]
+    @test map(x -> map(basename, x[2]), wd) == [["folderB", "folderA"], [], ["folderA2", "folderA1"], [], []]
+    @test map(x -> map(basename, x[3]), wd) == [["photoB.jpg", "folder.txt"], ["folderB.txt"], ["photoA.jpg", "folderA.txt"], ["folderA2.txt"], ["folderA1.txt"]]
+
+    @test read(joinpath(OSF.directory(proj, "/"), "folder.txt"), String) == "this is folder"
+    @test read(wd[4][3][1], String) == "this is folderA2"
+
+    tmp = mktempdir()
+    cp(d[1], joinpath(tmp, basename(d[1])))
+    @test isdir(joinpath(tmp, basename(d[1])))
+    @test_throws "exists" cp(d[1], joinpath(tmp, basename(d[1])))
+    cp(d[1], joinpath(tmp, basename(d[1])); force=true)
+
+    # test downloading a whole folder with subfolders
+    cp(d[4], joinpath(tmp, basename(d[4])); force=true)
+    local_d4 = collect(walkdir(joinpath(tmp, basename(d[4]))))
+    remote_d4 = collect(walkdir(d[4]))
+
+    @test length(local_d4) == length(remote_d4)
+    @test map(x -> basename(x[1]), local_d4) |> sort == map(x -> basename(x[1]), local_d4) |> sort
+    @test map(x -> map(basename, x[2]), local_d4) .|> sort |> sort == map(x -> map(basename, x[2]), local_d4) .|> sort |> sort
+    @test map(x -> map(basename, x[3]), local_d4) .|> sort |> sort == map(x -> map(basename, x[3]), local_d4) .|> sort |> sort
+    @test read(joinpath(local_d4[2][1], local_d4[2][3][1]), String) == "this is folderA1"
+end
+
+@testset verbose=true "highlevel - authenticated" begin
     osf = OSF.Client(; token)
     proj = OSF.project(osf; title=project_title)
     @test startswith(sprint(show, proj), "OSF Project `Test_OSFjl_project`, id")
@@ -52,6 +87,7 @@ end
     @sync for d in readdir(proj)
         @async rm(d)
     end
+    sleep(1)
 
     @test readdir(OSF.Directory, proj) == []
     @test readdir(proj) == []
@@ -59,6 +95,7 @@ end
     @test sprint(show, dir) == "OSF Directory `/mydir/` (doesn't exist)"
     @test !isdir(dir)
     dir = mkdir(dir)
+    sleep(1)
     dir_r = OSF.refresh(dir)
     @test sprint(show, dir) == "OSF Directory `/mydir/`"
     @test !islink(dir)

@@ -8,10 +8,10 @@ using Parameters
 
 @with_kw struct Client
     api_version::String = "2"
-    token::String
+    token::Union{String,Nothing} = nothing
 end
 
-headers(osf::Client) = ["Authorization" => "Bearer $(osf.token)"]
+headers(osf::Client) = isnothing(osf.token) ? [] : ["Authorization" => "Bearer $(osf.token)"]
 
 to_payload(x::String) = x
 to_payload(x::Dict) = JSON.write(x)
