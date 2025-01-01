@@ -47,16 +47,21 @@ end
 @testset verbose=true "highlevel" begin
     osf = OSF.Client(; token)
     proj = OSF.project(osf; title=project_title)
+    @test startswith(sprint(show, proj), "OSF Project `Test_OSFjl_project`, id")
 
-    @sync for d in readdir(OSF.Directory, proj)
+    @sync for d in readdir(proj)
         @async rm(d)
     end
 
     @test readdir(OSF.Directory, proj) == []
+    @test readdir(proj) == []
     dir = OSF.directory(proj, "mydir")
+    @test sprint(show, dir) == "OSF Directory `/mydir/` (doesn't exist)"
     @test !isdir(dir)
     dir = mkdir(dir)
     dir_r = OSF.refresh(dir)
+    @test sprint(show, dir) == "OSF Directory `/mydir/`"
+    @test !islink(dir)
     @test isdir(dir)
     @test isdir(dir_r)
     @test abspath(dir) == abspath(dir_r)
@@ -68,16 +73,26 @@ end
     subdir = mkdir(subdir)
     @test isdir(subdir)
     @test isdir(OSF.directory(dir, "mysubdir"))
+    @test joinpath(dir, subdir) == subdir
+    @test_throws "Cannot" joinpath(subdir, dir)
     @test [basename(d) for d in readdir(OSF.Directory, dir)] == ["mysubdir"]
+    @test basename.(readdir(dir)) == ["mysubdir"]
 
     @test [basename(d) for d in readdir(OSF.File, dir)] == []
     file = OSF.file(dir, "myfile.txt")
+    @test sprint(show, file) == "OSF File `/mydir/myfile.txt` (doesn't exist)"
     @test !isfile(file)
+    @test joinpath(dir, file) == file
+    @test_throws MethodError joinpath(file, dir)
 
     write(file, "my file content")
     file = OSF.refresh(file)
+    @test sprint(show, file) == "OSF File `/mydir/myfile.txt` (15 bytes)"
+    @test joinpath(dir, file) == file
     @test [basename(d) for d in readdir(OSF.File, dir)] == ["myfile.txt"]
+    @test basename.(readdir(dir)) == ["mysubdir", "myfile.txt"]
     @test isfile(file)
+    @test !islink(file)
     @test filesize(file) == length("my file content")
     @test read(file, String) == "my file content"
     @test length(OSF.versions(file)) == 1
