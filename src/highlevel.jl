@@ -87,16 +87,6 @@ Base.show(io::IO, x::FileNonexistent) = print(io, "OSF File `$(x.path)` (doesn't
 
 
 Base.islink(a::Union{Directory,File}) = false
-Base.joinpath(a::Union{Directory,File}) = a
-function Base.joinpath(a::Directory, b::Union{Directory,File,DirectoryNonexistent,FileNonexistent})
-    pa, pb = abspath(a), abspath(b)
-    if startswith(pb, pa)
-        return b
-    else
-        error("Cannot `joinpath()` OSF entries $pa and $pb.")
-    end
-end
-
 
 function directory(proj::Project, path::AbstractString; storage=nothing)
     storage_e = (@__MODULE__).storage(proj, storage)
@@ -140,6 +130,15 @@ function file(parent::Directory, name::AbstractString)
         # @assert entity.attributes[:kind] == "folder"
         # @assert entity.attributes[:path] == "/" || entity.attributes[:materialized_path] == path
         return File(project(parent), parent.storage, entity)
+    end
+end
+
+function Base.joinpath(a::Union{Directory,Project}, b::Union{Directory,File,DirectoryNonexistent,FileNonexistent})
+    pa, pb = abspath(a), abspath(b)
+    if startswith(pb, pa)
+        return b
+    else
+        error("Cannot `joinpath()` OSF entries $pa and $pb.")
     end
 end
 
