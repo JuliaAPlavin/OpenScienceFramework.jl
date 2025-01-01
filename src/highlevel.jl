@@ -196,6 +196,41 @@ Base.readdir(::Type{Directory}, dir::Union{Project,Directory}; kwargs...) = filt
 Base.readdir(::Type{File}, dir::Union{Project,Directory}; kwargs...) = filter(isfile, readdir(dir); kwargs...)
 
 
+# copied almost verbatim from Julia Base
+# just the types are changed from String
+function Base.walkdir(dir::Union{Directory,Project}; topdown=true, onerror=throw)
+    function _walkdir(chnl, dir)
+        tryf(f, p) =
+            try
+                f(p)
+            catch err
+                isa(err, IOError) || rethrow()
+                try
+                    onerror(err)
+                catch err2
+                    close(chnl, err2)
+                end
+                return
+            end
+        entries = tryf(readdir, dir)
+        entries === nothing && return
+        dirs = filter(isdir, entries)
+        files = filter(!isdir, entries)  # treat everything that isn't a directory as a file; anything aside from File here?
+        if topdown
+            push!(chnl, (dir, dirs, files))
+        end
+        for d in dirs
+            _walkdir(chnl, d)
+        end
+        if !topdown
+            push!(chnl, (dir, dirs, files))
+        end
+        nothing
+    end
+    return Channel{Tuple{Union{Project,Directory},Vector{Directory},Vector{File}}}(chnl -> _walkdir(chnl, dir))
+end
+
+
 struct ViewOnlyLink
     entity::API.Entity{:view_only_links}
 end

@@ -142,6 +142,11 @@ end
 
     map(OSF.url, OSF.versions(file))
 
+    wd = collect(walkdir(dir))
+    @test map(x -> basename(x[1]), wd) == ["mydir", "mysubdir"]
+    @test map(x -> map(basename, x[2]), wd) == [["mysubdir"], []]
+    @test map(x -> map(basename, x[3]), wd) == [["myfile.txt"], []]
+
     rm(file)
     @test !isfile(OSF.refresh(file))
 end
