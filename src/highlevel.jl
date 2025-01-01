@@ -88,7 +88,7 @@ end
 
 function directory(parent::Directory, name::AbstractString)
     @assert !occursin("/", strip(name, '/'))  name
-    path = joinpath(abspath(parent), name)
+    path = "$(rstrip(abspath(parent), '/'))/$(lstrip(name, '/'))"  # not joinpath() because on windows it uses \
     path = endswith(path, "/") ? path : "$(path)/"
     @assert startswith(path, "/")  path
     dir_e = API.find_by_path(client(parent), parent.entity, path)
@@ -105,7 +105,7 @@ directory(f::Union{File, FileNonexistent}) = directory(project(f), dirname(abspa
 
 function file(parent::Directory, name::AbstractString)
     @assert !occursin("/", strip(name, '/'))  name
-    path = joinpath(abspath(parent), name)
+    path = "$(rstrip(abspath(parent), '/'))/$(lstrip(name, '/'))"  # not joinpath() because on windows it uses \
     @assert !endswith(path, "/") && startswith(path, "/")  path
     entity = API.find_by_path(client(parent), parent.entity, path)
     if isnothing(entity)
