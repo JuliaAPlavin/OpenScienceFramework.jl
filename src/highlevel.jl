@@ -20,6 +20,11 @@ storage(proj::Project, storage::String) = let
 end
 storage(::Project, storage::API.Entity{:files}) = storage
 
+Base.isdir(::Project) = true
+Base.isfile(::Project) = false
+Base.basename(p::Project) = ""
+Base.abspath(p::Project) = "/"
+
 struct Directory
     project::Project
     storage::API.Entity{:files}
@@ -136,6 +141,21 @@ function file(parent::Directory, name::AbstractString)
     end
 end
 
+function Base.joinpath(parent::Directory, name::AbstractString)
+    @assert !occursin("/", strip(name, '/'))  name
+    path = "$(rstrip(abspath(parent), '/'))/$(lstrip(name, '/'))"  # not joinpath() because on windows it uses \
+    @assert startswith(path, "/")  path
+    entity = API.find_by_path(client(parent), parent.entity, path)
+    isnothing(entity) && error("File/directory $path doesn't exist. Use `OSF.file(...)` or `OSF.directory(...)` to handle nonexistent entries.")
+    if entity.attributes[:kind] == "folder"
+        @assert entity.attributes[:path] == "/" || entity.attributes[:materialized_path] == path
+        return Directory(project(parent), parent.storage, entity)
+    else
+        return File(project(parent), parent.storage, entity)
+    end
+end
+
+Base.joinpath(parent::Union{Directory,Project}, names::AbstractString...) = foldl(joinpath, names; init=parent)
 
 refresh(f::Union{File, FileNonexistent}) = file(directory(f), basename(f))
 refresh(d::Union{Directory, DirectoryNonexistent}) = directory(project(d), abspath(d); d.storage)
@@ -166,9 +186,16 @@ Base.cp(src::AbstractString, dst::File; force::Bool=false) = (@assert force; ope
 Base.cp(src::FileNonexistent, dst::AbstractString; force::Bool=false) = error("File doesn't exist in OSF: $(abspath(src))")
 Base.cp(src::File, dst::AbstractString; force::Bool=false) = let 
     if !force && ispath(dst)
-        error("Already exists: $dst")
+        throw(ArgumentError("'$dst' exists. `force=true` is required to remove '$dst' before copying."))
     end
     Downloads.download(string(url(src)), dst)
+end
+
+function Base.cp(src::Directory, dst::AbstractString;force::Bool=false)
+    mkpath(dst)
+    for f in readdir(src)
+        cp(f, joinpath(dst, basename(f)); force)
+    end
 end
 
 Base.write(f::File, content) = API.upload_file(client(f), f.entity, content)
