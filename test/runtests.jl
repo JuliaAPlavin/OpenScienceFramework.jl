@@ -233,6 +233,7 @@ end
 
     @testset "file" begin
         OSF.API.upload_file(osf, storage, "test.txt", "test content")
+        sleep(1)
         files = OSF.API.relationship_complete(osf, storage, :files)
         @test length(files) == 1
         @test only(files).attributes[:materialized_path] == "/test.txt"
@@ -282,6 +283,7 @@ end
 
         file = OSF.API.find_by_path(osf, storage, "/test_21.txt")
         OSF.API.upload_file(osf, file, "updated content 21")
+        sleep(1)
         versions = OSF.API.relationship_complete(osf, file, :versions, etype=:file_versions)
         @test length(versions) == 2
         url = OSF.API.file_viewonly_url(versions[1], vo_link, :download)
@@ -291,6 +293,7 @@ end
 
     @testset "folders" begin
         OSF.API.create_folder(osf, storage, "testdir")
+        sleep(1)
         dir = OSF.API.find_by_path(osf, storage, "/testdir/")
         @test dir.attributes[:kind] == "folder"
         @test dir.attributes[:materialized_path] == "/testdir/"
