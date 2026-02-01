@@ -227,6 +227,34 @@ end
     @test joinpath(dir, file) == file
     @test_throws MethodError joinpath(file, dir)
 
+    # joinpath returns Nonexistent for missing paths
+    ne = joinpath(dir, "no_such_entry")
+    @test ne isa OSF.Nonexistent
+    @test !isfile(ne) && !isdir(ne)
+    @test basename(ne) == "no_such_entry"
+    @test sprint(show, ne) == "OSF `$(abspath(ne))` (doesn't exist)"
+    # multi-component chaining through nonexistent intermediates
+    ne2 = joinpath(dir, "no_a", "no_b", "no_c.txt")
+    @test ne2 isa OSF.Nonexistent
+    @test basename(ne2) == "no_c.txt"
+    @test endswith(abspath(ne2), "/no_a/no_b/no_c.txt")
+    # converting to specific nonexistent types
+    @test OSF.FileNonexistent(ne) isa OSF.FileNonexistent
+    @test OSF.DirectoryNonexistent(ne) isa OSF.DirectoryNonexistent
+    @test abspath(OSF.FileNonexistent(ne)) == abspath(ne)
+    @test endswith(abspath(OSF.DirectoryNonexistent(ne)), "/")
+    # joinpath with existing entries still works
+    @test joinpath(dir, "mysubdir") isa OSF.Directory
+    # refresh on Nonexistent re-checks existence
+    @test OSF.refresh(ne) isa OSF.Nonexistent
+    @test OSF.refresh(joinpath(dir, "mysubdir")) isa OSF.Directory
+    # write through Nonexistent
+    ne_file = joinpath(dir, "written_via_ne.txt")
+    @test write(ne_file, "ne content") == length("ne content")
+    eventually(() -> @assert isfile(OSF.refresh(ne_file)))
+    @test read(OSF.refresh(ne_file), String) == "ne content"
+    rm(OSF.refresh(ne_file))
+
     @test write(file, "my file content") == length("my file content")
     file = eventually(() -> OSF.refresh(file))
     @test sprint(show, file) == "OSF File `$(abspath(file))` (15 bytes)"
