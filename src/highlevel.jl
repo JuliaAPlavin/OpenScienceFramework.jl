@@ -21,12 +21,93 @@ The `title` must match exactly and uniquely.
 """
 project(c::API.Client, id::String) = OSF.Project(c, OSF.API.get_entity(c, :nodes, id))
 
-function project(c::API.Client; user::String="me", title::String)
+"""
+    projects(client; user="me", title=nothing)
+
+List OSF projects (nodes) for a user. Optionally filter by exact `title`.
+"""
+function projects(c::API.Client; user::String="me", title::Union{Nothing,AbstractString}=nothing)
     user_e = API.get_entity(c, :users, user)
-    projs = API.relationship(c, user_e, :nodes, filters=["title" => title]).data
+    filters = isnothing(title) ? [] : ["title" => String(title)]
+    nodes = API.relationship_complete(c, user_e, :nodes; filters)
+    return [Project(c, node) for node in nodes]
+end
+
+function project(c::API.Client; user::String="me", title::String)
+    projs = projects(c; user, title)
     proj_e = only(projs)
-    @assert proj_e.attributes[:title] == title
-    Project(c, proj_e)
+    @assert proj_e.entity.attributes[:title] == title
+    return proj_e
+end
+
+"""
+    create_project(client; title, category="project", public=false, description=nothing)
+
+Create a new OSF project and return it as a [`Project`](@ref).
+"""
+function create_project(
+    c::API.Client;
+    title::AbstractString,
+    category::AbstractString="project",
+    public::Bool=false,
+    description::Union{Nothing,AbstractString}=nothing,
+)
+    attrs = Dict{String,Any}(
+        "title" => String(title),
+        "category" => String(category),
+        "public" => public,
+    )
+    isnothing(description) || (attrs["description"] = String(description))
+    r = API.create_entity(c, "nodes", attrs)
+    return project(c, string(r[:data][:id]))
+end
+
+"""
+    components(parent::Project; title=nothing)
+
+List components (child nodes) of a project. Optionally filter by exact `title`.
+"""
+function components(parent::Project; title::Union{Nothing,AbstractString}=nothing)
+    filters = isnothing(title) ? [] : ["title" => String(title)]
+    children = API.relationship_complete(client(parent), parent.entity, :children; etype=:nodes, filters)
+    return [Project(client(parent), child) for child in children]
+end
+
+"""
+    create_component(parent::Project; title, category="analysis", description=nothing)
+
+Create a component (child node) under `parent` and return it as a [`Project`](@ref).
+"""
+function create_component(
+    parent::Project;
+    title::AbstractString,
+    category::AbstractString="analysis",
+    description::Union{Nothing,AbstractString}=nothing,
+)
+    attrs = Dict{String,Any}(
+        "title" => String(title),
+        "category" => String(category),
+    )
+    isnothing(description) || (attrs["description"] = String(description))
+    endpoint = parent.entity.relationships[:children]["links"]["related"]["href"]
+    r = API.request(
+        client(parent),
+        Val(:POST),
+        endpoint,
+        Dict;
+        payload=Dict("data" => Dict("type" => "nodes", "attributes" => attrs)),
+    )
+    return project(client(parent), string(r[:data][:id]))
+end
+
+"""
+    delete(node::Project)
+
+Delete a project or component from OSF.
+"""
+function delete(node::Project)
+    API.delete(client(node), node.entity)
+    return nothing
 end
 
 """
@@ -252,7 +333,13 @@ function Base.mkdir(d::DirectoryNonexistent)
     parent_d isa DirectoryNonexistent &&
         throw(OSFError("Parent directory doesn't exist in OSF: $(abspath(parent_d)). Use `mkpath(...)` to create it recursively."))
     API.create_folder(client(d), parent_d.entity, basename(d))
-    return directory(project(d), d.path; d.storage)
+    deadline = time() + 10.0
+    while true
+        created = directory(project(d), d.path; d.storage)
+        created isa Directory && return created
+        time() >= deadline && throw(OSFError("Directory creation wasn't visible in OSF before timeout: $(d.path)"))
+        sleep(0.2)
+    end
 end
 
 """

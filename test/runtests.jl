@@ -51,6 +51,71 @@ download_as_string(url) = eventually() do
     String(take!(Downloads.download(string(url), IOBuffer())))
 end
 
+@testset "client token defaults from environment" begin
+    original = get(ENV, "OSF_TOKEN", nothing)
+    try
+        ENV["OSF_TOKEN"] = "token-from-env"
+        @test OSF.Client().token == "token-from-env"
+
+        @test OSF.Client(token="explicit-token").token == "explicit-token"
+
+        pop!(ENV, "OSF_TOKEN")
+        @test OSF.Client().token === nothing
+    finally
+        if isnothing(original)
+            pop!(ENV, "OSF_TOKEN", nothing)
+        else
+            ENV["OSF_TOKEN"] = original
+        end
+    end
+end
+
+@testset "highlevel node lifecycle" begin
+    osf = OSF.Client(; token)
+
+    proj_title = test_name("lifecycle_project")
+    comp_title = test_name("lifecycle_component")
+    created_proj = nothing
+    created_comp = nothing
+    proj_id = nothing
+    comp_id = nothing
+
+    try
+        created_proj = OSF.create_project(osf; title=proj_title)
+        proj_id = created_proj.entity.id
+        @test created_proj isa OSF.Project
+        @test created_proj.entity.attributes[:title] == proj_title
+        @test eventually_true(() -> any(p -> p.entity.id == proj_id, OSF.projects(osf; title=proj_title)))
+
+        created_comp = OSF.create_component(created_proj; title=comp_title)
+        comp_id = created_comp.entity.id
+        @test created_comp isa OSF.Project
+        @test created_comp.entity.attributes[:title] == comp_title
+        @test eventually_true(() -> any(c -> c.entity.id == comp_id, OSF.components(created_proj; title=comp_title)))
+
+        OSF.delete(created_comp)
+        created_comp = nothing
+        @test eventually_true(() -> !any(c -> c.entity.id == comp_id, OSF.components(created_proj)))
+
+        OSF.delete(created_proj)
+        created_proj = nothing
+        @test eventually_true(() -> !any(p -> p.entity.id == proj_id, OSF.projects(osf; title=proj_title)))
+    finally
+        if !isnothing(created_comp)
+            try
+                OSF.delete(created_comp)
+            catch
+            end
+        end
+        if !isnothing(created_proj)
+            try
+                OSF.delete(created_proj)
+            catch
+            end
+        end
+    end
+end
+
 @testset "artifacts" begin
     toml_file = "Artifacts.toml"
     rm(toml_file; force=true)

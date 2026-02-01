@@ -36,7 +36,9 @@ OSF.url(f)
 For private projects or any write operations, you need an OSF personal access token — create one at https://osf.io/settings/tokens.
 
 ```julia
-client = OSF.Client(token="your-token-here")
+client = OSF.Client()  # reads ENV["OSF_TOKEN"] by default
+# or explicitly:
+# client = OSF.Client(token="your-token-here")
 
 # find your project by title
 proj = OSF.project(client; title="My Research Data")
@@ -83,6 +85,11 @@ These standard Julia `Base` functions work on OSF objects:
 Beyond the filesystem API, these functions handle OSF-specific concepts. See their docstrings for details (`?OSF.versions` etc.).
 
 - `OSF.project(client, id)` / `OSF.project(client; title="...")` — access a project by ID or title
+- `OSF.projects(client; user="me", title=nothing)` — list user projects/components (optionally by title)
+- `OSF.create_project(client; title, ...)` — create a project
+- `OSF.components(project; title=nothing)` — list child components of a project
+- `OSF.create_component(project; title, ...)` — create a component under a project
+- `OSF.delete(project_or_component)` — delete a project/component
 - `OSF.file(dir, name)` / `OSF.directory(proj, path)` — reference entries that may not exist yet (for upload targets)
 - `OSF.storage(proj, name)` — access different storage providers (default: `"osfstorage"`)
 - `OSF.url(file)` — get a download URL for a file
