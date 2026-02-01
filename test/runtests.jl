@@ -129,6 +129,7 @@ end
     @test startswith(sprint(show, proj), "OSF Project `Test_OSFjl_project`, id")
 
     suite_root = OSF.directory(proj, test_name("highlevel")) |> mkpath
+    suite_root_name = basename(suite_root)
     @test isdir(suite_root)
 
     dir = OSF.directory(suite_root, "mydir")
@@ -238,21 +239,32 @@ end
     @test basename(weird_file) == weird_file_name
     @test read(weird_file, String) == "special content"
 
-    @test rm(weird_file) === nothing
+    @test rm(weird_file) isa OSF.FileNonexistent
     @test eventually_true(() -> !isfile(OSF.refresh(weird_file)))
-    @test rm(weird_dir) === nothing
+    @test rm(weird_dir) isa OSF.DirectoryNonexistent
     @test eventually_true(() -> !isdir(OSF.refresh(weird_dir)))
 
     @test_throws OSF.OSFError rm(OSF.file(dir, "missing_$(test_name("file")).txt"))
     @test_throws OSF.OSFError cp(OSF.file(dir, "missing_$(test_name("file")).txt"), tempname())
 
-    @test rm(file) === nothing
+    @test rm(file) isa OSF.FileNonexistent
     @test eventually_true(() -> !isfile(OSF.refresh(file)))
-    @test rm(subdir) === nothing
+    @test rm(subdir) isa OSF.DirectoryNonexistent
     @test eventually_true(() -> !isdir(OSF.refresh(subdir)))
-    @test rm(dir) === nothing
+    @test rm(dir) isa OSF.DirectoryNonexistent
     @test eventually_true(() -> !isdir(OSF.refresh(dir)))
-    @test rm(suite_root) === nothing
+
+    nested = OSF.directory(proj, "$(suite_root_name)/nested/a/b/c")
+    @test !isdir(nested)
+    nested = mkpath(nested)
+    @test isdir(nested)
+    @test isdir(OSF.directory(proj, "$(suite_root_name)/nested/"))
+    @test isdir(OSF.directory(proj, "$(suite_root_name)/nested/a/"))
+    @test isdir(OSF.directory(proj, "$(suite_root_name)/nested/a/b/"))
+
+    @test_throws OSF.OSFError mkdir(OSF.directory(proj, "$(suite_root_name)/missing_parent/x/y"))
+
+    @test rm(suite_root) isa OSF.DirectoryNonexistent
     @test eventually_true(() -> !isdir(OSF.refresh(suite_root)))
 end
 
