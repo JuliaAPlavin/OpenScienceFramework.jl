@@ -397,14 +397,16 @@ function Base.rm(f::File; force::Bool=false)
 end
 
 """
-    cp(local_path::String, osf_file; force=false)
-    cp(osf_file, local_path::String; force=false)
-    cp(osf_dir::Directory, local_path::String; force=false)
+    cp(local_path::String, osf_target; force=false)
+    cp(osf_source, local_path::String; force=false)
 
-Copy files between local filesystem and OSF. Works in both directions.
-Use `force=true` to overwrite existing files. Copying a `Directory` downloads all its contents recursively.
+Copy files or directories between local filesystem and OSF. Works in both directions.
+Semantics match `Base.cp`: errors if destination exists unless `force=true`, which replaces the destination.
+Directories are copied recursively.
 """
-Base.cp(src::AbstractString, dst::Nonexistent; force::Bool=false) = cp(src, FileNonexistent(dst); force)
+Base.cp(src::AbstractString, dst::Nonexistent; force::Bool=false) =
+    cp(src, isdir(src) ? DirectoryNonexistent(dst) : FileNonexistent(dst); force)
+
 function Base.cp(src::AbstractString, dst::FileNonexistent; force::Bool=false)
     open(io -> write(dst, io), src, "r")
     return dst
@@ -414,6 +416,20 @@ function Base.cp(src::AbstractString, dst::File; force::Bool=false)
     open(io -> write(dst, io), src, "r")
     return dst
 end
+function Base.cp(src::AbstractString, dst::DirectoryNonexistent; force::Bool=false)
+    isdir(src) || throw(ArgumentError("'$src' is not a directory"))
+    osf_dir = mkdir(dst)
+    for name in readdir(src)
+        cp(joinpath(src, name), joinpath(osf_dir, name))
+    end
+    return osf_dir
+end
+function Base.cp(src::AbstractString, dst::Directory; force::Bool=false)
+    force || throw(OSFError("Destination directory exists in OSF: $(abspath(dst)). Pass `force=true` to overwrite."))
+    isdir(src) || throw(ArgumentError("'$(abspath(dst))' is a directory in OSF, but '$src' is not a directory"))
+    rm(dst)
+    return cp(src, DirectoryNonexistent(project(dst), dst.storage, abspath(dst)))
+end
 Base.cp(src::FileNonexistent, dst::AbstractString; force::Bool=false) = throw(OSFError("File doesn't exist in OSF: $(abspath(src))"))
 Base.cp(src::File, dst::AbstractString; force::Bool=false) = let 
     if !force && ispath(dst)
@@ -422,10 +438,14 @@ Base.cp(src::File, dst::AbstractString; force::Bool=false) = let
     Downloads.download(string(url(src)), dst)
 end
 
-function Base.cp(src::Directory, dst::AbstractString;force::Bool=false)
-    mkpath(dst)
+function Base.cp(src::Directory, dst::AbstractString; force::Bool=false)
+    if ispath(dst)
+        force || throw(ArgumentError("'$dst' exists. `force=true` is required to remove '$dst' before copying."))
+        rm(dst; recursive=true)
+    end
+    mkdir(dst)
     for f in readdir(src)
-        cp(f, joinpath(dst, basename(f)); force)
+        cp(f, joinpath(dst, basename(f)))
     end
     return dst
 end

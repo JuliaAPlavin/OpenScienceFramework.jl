@@ -320,6 +320,26 @@ end
     @test map(x -> map(basename, x[2]), wd) == [["mysubdir"], []]
     @test map(x -> map(basename, x[3]), wd) == [["myfile.txt"], []]
 
+    # test uploading a local directory to OSF
+    mktempdir() do tmpdir
+        mkdir(joinpath(tmpdir, "sub"))
+        write(joinpath(tmpdir, "a.txt"), "aaa")
+        write(joinpath(tmpdir, "sub", "b.txt"), "bbb")
+
+        cp_dst = joinpath(suite_root, "cp_upload_dir")
+        uploaded = eventually(() -> cp(tmpdir, cp_dst))
+        @test uploaded isa OSF.Directory
+        @test basename(uploaded) == "cp_upload_dir"
+        @test eventually_true(() -> sort(basename.(readdir(uploaded))) == ["a.txt", "sub"])
+        @test eventually_true(() -> read(joinpath(uploaded, "a.txt"), String) == "aaa")
+        sub = eventually(() -> let s = joinpath(uploaded, "sub"); s isa OSF.Directory ? s : error(); end)
+        @test eventually_true(() -> read(joinpath(sub, "b.txt"), String) == "bbb")
+        @test_throws OSF.OSFError cp(tmpdir, uploaded)
+
+        rm(uploaded)
+        eventually_true(() -> !isdir(OSF.refresh(uploaded)))
+    end
+
     weird_dir_name = "dir & spaced"
     weird_file_name = "file & spaced.txt"
     weird_dir = OSF.directory(suite_root, weird_dir_name)
