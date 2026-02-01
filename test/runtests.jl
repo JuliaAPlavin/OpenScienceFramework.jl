@@ -336,7 +336,7 @@ end
         @test eventually_true(() -> read(joinpath(sub, "b.txt"), String) == "bbb")
         @test_throws OSF.OSFError cp(tmpdir, uploaded)
 
-        rm(uploaded)
+        rm(uploaded; recursive=true)
         eventually_true(() -> !isdir(OSF.refresh(uploaded)))
     end
 
@@ -357,7 +357,7 @@ end
 
     @test rm(weird_file) isa OSF.FileNonexistent
     @test eventually_true(() -> !isfile(OSF.refresh(weird_file)))
-    @test rm(weird_dir) isa OSF.DirectoryNonexistent
+    @test rm(weird_dir; recursive=true) isa OSF.DirectoryNonexistent
     @test eventually_true(() -> !isdir(OSF.refresh(weird_dir)))
 
     @test_throws OSF.OSFError rm(OSF.file(dir, "missing_$(test_name("file")).txt"))
@@ -365,9 +365,9 @@ end
 
     @test rm(file) isa OSF.FileNonexistent
     @test eventually_true(() -> !isfile(OSF.refresh(file)))
-    @test rm(subdir) isa OSF.DirectoryNonexistent
+    @test rm(subdir; recursive=true) isa OSF.DirectoryNonexistent
     @test eventually_true(() -> !isdir(OSF.refresh(subdir)))
-    @test rm(dir) isa OSF.DirectoryNonexistent
+    @test rm(dir; recursive=true) isa OSF.DirectoryNonexistent
     @test eventually_true(() -> !isdir(OSF.refresh(dir)))
 
     nested = OSF.directory(proj, "$(suite_root_name)/nested/a/b/c")
@@ -380,7 +380,7 @@ end
 
     @test_throws OSF.OSFError mkdir(OSF.directory(proj, "$(suite_root_name)/missing_parent/x/y"))
 
-    @test rm(suite_root) isa OSF.DirectoryNonexistent
+    @test rm(suite_root; recursive=true) isa OSF.DirectoryNonexistent
     @test eventually_true(() -> !isdir(OSF.refresh(suite_root)))
 end
 
@@ -451,7 +451,7 @@ end
     end
 
     # Cleanup
-    rm(vo_dir)
+    rm(vo_dir; recursive=true)
 end
 
 @testset verbose=true "lowlevel" begin

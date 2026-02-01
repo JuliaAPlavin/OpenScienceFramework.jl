@@ -377,11 +377,14 @@ function Base.mkdir(d::DirectoryNonexistent)
 end
 
 """
-    rm(entry::Union{File, Directory}; force=false)
+    rm(entry::File; force=false)
+    rm(entry::Directory; recursive=true)
 
 Delete a file or directory from OSF. Returns the corresponding `Nonexistent` wrapper.
+Directories require `recursive=true`. Use `force=true` to suppress errors on nonexistent entries.
 """
-function Base.rm(d::Directory)
+function Base.rm(d::Directory; force::Bool=false, recursive::Bool=false)
+    recursive || throw(OSFError("Use `rm(...; recursive=true)` to remove a directory in OSF: $(abspath(d))"))
     API.delete(client(d), d.entity)
     return DirectoryNonexistent(project(d), d.storage, abspath(d))
 end
@@ -390,6 +393,10 @@ Base.rm(n::Nonexistent; force::Bool=false) = rm(FileNonexistent(n); force)
 function Base.rm(f::FileNonexistent; force::Bool=false)
     force && return nothing
     throw(OSFError("File doesn't exist in OSF: $(abspath(f))"))
+end
+function Base.rm(d::DirectoryNonexistent; force::Bool=false, recursive::Bool=false)
+    force && return nothing
+    throw(OSFError("Directory doesn't exist in OSF: $(abspath(d))"))
 end
 function Base.rm(f::File; force::Bool=false)
     API.delete(client(f), f.entity)
@@ -427,7 +434,7 @@ end
 function Base.cp(src::AbstractString, dst::Directory; force::Bool=false)
     force || throw(OSFError("Destination directory exists in OSF: $(abspath(dst)). Pass `force=true` to overwrite."))
     isdir(src) || throw(ArgumentError("'$(abspath(dst))' is a directory in OSF, but '$src' is not a directory"))
-    rm(dst)
+    rm(dst; recursive=true)
     return cp(src, DirectoryNonexistent(project(dst), dst.storage, abspath(dst)))
 end
 Base.cp(src::FileNonexistent, dst::AbstractString; force::Bool=false) = throw(OSFError("File doesn't exist in OSF: $(abspath(src))"))
