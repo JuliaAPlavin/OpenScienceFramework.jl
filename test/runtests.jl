@@ -28,6 +28,25 @@ function eventually(f::Function; timeout=30.0, interval=0.5)
     end
 end
 
+function eventually_true(f::Function; timeout=30.0, interval=0.5)
+    deadline = time() + timeout
+    last_error = nothing
+    last_result = nothing
+    while true
+        try
+            last_result = f()
+            last_result === true && return true
+        catch err
+            last_error = err
+        end
+        if time() >= deadline
+            isnothing(last_error) || rethrow(last_error)
+            error("Condition wasn't met before timeout; last result: $(repr(last_result))")
+        end
+        sleep(interval)
+    end
+end
+
 download_as_string(url) = eventually() do
     String(take!(Downloads.download(string(url), IOBuffer())))
 end
@@ -87,13 +106,13 @@ end
     @test read(wd[4][3][1], String) == "this is folderA2"
 
     tmp = mktempdir()
-    cp(d[1], joinpath(tmp, basename(d[1])))
+    eventually(() -> (cp(d[1], joinpath(tmp, basename(d[1]))); true))
     @test isdir(joinpath(tmp, basename(d[1])))
     @test_throws "exists" cp(d[1], joinpath(tmp, basename(d[1])))
-    cp(d[1], joinpath(tmp, basename(d[1])); force=true)
+    eventually(() -> (cp(d[1], joinpath(tmp, basename(d[1])); force=true); true))
 
     # test downloading a whole folder with subfolders
-    cp(d[4], joinpath(tmp, basename(d[4])); force=true)
+    eventually(() -> (cp(d[4], joinpath(tmp, basename(d[4])); force=true); true))
     local_d4 = collect(walkdir(joinpath(tmp, basename(d[4]))))
     remote_d4 = collect(walkdir(d[4]))
 
@@ -158,10 +177,10 @@ end
     @test download_as_string(url_ver1) == "my file content"
 
     write(file, b"some new content")
-    @test read(file, String) == "some new content"
-    @test read(file) == b"some new content"
-    @test length(OSF.versions(file)) == 2
-    @test read.(OSF.versions(file), String) == ["some new content", "my file content"]
+    @test eventually_true(() -> read(file, String) == "some new content")
+    @test eventually_true(() -> read(file) == b"some new content")
+    @test eventually_true(() -> length(OSF.versions(file)) == 2)
+    @test eventually_true(() -> read.(OSF.versions(file), String) == ["some new content", "my file content"])
     url_ver2 = OSF.url(OSF.versions(file) |> maximum)
     @test download_as_string(url_file) == "some new content"
     @test download_as_string(url_ver1) == "my file content"
@@ -173,16 +192,16 @@ end
             write(file, io)  # method specific to OSF.File - not in Base
         end
     end
-    @test read(file, String) == "content from file"
-    @test length(OSF.versions(file)) == 3
+    @test eventually_true(() -> read(file, String) == "content from file")
+    @test eventually_true(() -> length(OSF.versions(file)) == 3)
 
     mktemp() do path, _
         write(path, "more from file")
         @test_throws Exception cp(path, file)
         cp(path, file; force=true)
     end
-    @test read(file, String) == "more from file"
-    @test length(OSF.versions(file)) == 4
+    @test eventually_true(() -> read(file, String) == "more from file")
+    @test eventually_true(() -> length(OSF.versions(file)) == 4)
     url_ver4 = OSF.url(OSF.versions(file) |> maximum)
     @test download_as_string(url_ver1) == "my file content"
     @test download_as_string(url_ver2) == "some new content"
@@ -203,6 +222,26 @@ end
     @test map(x -> basename(x[1]), wd) == ["mydir", "mysubdir"]
     @test map(x -> map(basename, x[2]), wd) == [["mysubdir"], []]
     @test map(x -> map(basename, x[3]), wd) == [["myfile.txt"], []]
+
+    weird_dir_name = "dir & spaced"
+    weird_file_name = "file & spaced.txt"
+    weird_dir = OSF.directory(suite_root, weird_dir_name)
+    weird_dir = mkdir(weird_dir)
+    weird_dir = eventually(() -> OSF.refresh(weird_dir))
+    @test isdir(weird_dir)
+    @test basename(weird_dir) == weird_dir_name
+
+    weird_file = OSF.file(weird_dir, weird_file_name)
+    write(weird_file, "special content")
+    weird_file = eventually(() -> OSF.refresh(weird_file))
+    @test isfile(weird_file)
+    @test basename(weird_file) == weird_file_name
+    @test read(weird_file, String) == "special content"
+
+    rm(weird_file)
+    @test !isfile(eventually(() -> OSF.refresh(weird_file)))
+    rm(weird_dir)
+    @test !isdir(eventually(() -> OSF.refresh(weird_dir)))
 
     rm(file)
     @test !isfile(eventually(() -> OSF.refresh(file)))
