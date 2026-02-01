@@ -263,7 +263,7 @@ end
     @test sprint(show, file) == "OSF File `$(abspath(file))` (15 bytes)"
     @test joinpath(dir, file) == file
     @test [basename(d) for d in readdir(OSF.File, dir)] == ["myfile.txt"]
-    @test basename.(readdir(dir)) == ["mysubdir", "myfile.txt"]
+    @test sort(basename.(readdir(dir))) == ["myfile.txt", "mysubdir"]
     @test isfile(file)
     @test !islink(file)
     @test filesize(file) == length("my file content")
