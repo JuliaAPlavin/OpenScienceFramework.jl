@@ -254,13 +254,16 @@ Delete a file or directory from OSF. Returns the corresponding `Nonexistent` wra
 """
 function Base.rm(d::Directory)
     API.delete(client(d), d.entity)
-    return DirectoryNonexistent(project(d), d.storage, abspath(d))
+    return nothing
 end
 
-Base.rm(f::FileNonexistent; force::Bool=false) = @assert force
+function Base.rm(f::FileNonexistent; force::Bool=false)
+    force && return nothing
+    throw(OSFError("File doesn't exist in OSF: $(abspath(f))"))
+end
 function Base.rm(f::File; force::Bool=false)
     API.delete(client(f), f.entity)
-    return FileNonexistent(project(f), f.storage, abspath(f))
+    return nothing
 end
 
 """
@@ -271,9 +274,16 @@ end
 Copy files between local filesystem and OSF. Works in both directions.
 Use `force=true` to overwrite existing files. Copying a `Directory` downloads all its contents recursively.
 """
-Base.cp(src::AbstractString, dst::FileNonexistent; force::Bool=false) = open(io -> write(dst, io), src, "r")
-Base.cp(src::AbstractString, dst::File; force::Bool=false) = (@assert force; open(io -> write(dst, io), src, "r"))
-Base.cp(src::FileNonexistent, dst::AbstractString; force::Bool=false) = error("File doesn't exist in OSF: $(abspath(src))")
+function Base.cp(src::AbstractString, dst::FileNonexistent; force::Bool=false)
+    open(io -> write(dst, io), src, "r")
+    return dst
+end
+function Base.cp(src::AbstractString, dst::File; force::Bool=false)
+    force || throw(OSFError("Destination file exists in OSF: $(abspath(dst)). Pass `force=true` to overwrite."))
+    open(io -> write(dst, io), src, "r")
+    return dst
+end
+Base.cp(src::FileNonexistent, dst::AbstractString; force::Bool=false) = throw(OSFError("File doesn't exist in OSF: $(abspath(src))"))
 Base.cp(src::File, dst::AbstractString; force::Bool=false) = let 
     if !force && ispath(dst)
         throw(ArgumentError("'$dst' exists. `force=true` is required to remove '$dst' before copying."))
@@ -286,6 +296,7 @@ function Base.cp(src::Directory, dst::AbstractString;force::Bool=false)
     for f in readdir(src)
         cp(f, joinpath(dst, basename(f)); force)
     end
+    return dst
 end
 
 """
@@ -295,8 +306,31 @@ end
 Upload `content` to OSF. Overwrites the file if it already exists, or creates a new file.
 `content` can be any IO-compatible object or byte data.
 """
-Base.write(f::File, content) = API.upload_file(client(f), f.entity, content)
-Base.write(f::FileNonexistent, content) = API.upload_file(client(f), directory(f).entity, basename(f), content)
+function upload_payload(content)
+    if content isa IO
+        payload = read(content)
+        return payload, length(payload)
+    elseif content isa AbstractString
+        return content, ncodeunits(content)
+    elseif content isa AbstractVector{UInt8}
+        return content, length(content)
+    else
+        hasmethod(length, Tuple{typeof(content)}) || throw(OSFError("Unsupported write content type: $(typeof(content))"))
+        return content, length(content)
+    end
+end
+
+function Base.write(f::File, content)
+    payload, nbytes = upload_payload(content)
+    API.upload_file(client(f), f.entity, payload)
+    return nbytes
+end
+
+function Base.write(f::FileNonexistent, content)
+    payload, nbytes = upload_payload(content)
+    API.upload_file(client(f), directory(f).entity, basename(f), payload)
+    return nbytes
+end
 
 
 """

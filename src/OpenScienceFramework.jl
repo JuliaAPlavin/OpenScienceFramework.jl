@@ -13,6 +13,11 @@ using Pkg.Artifacts
 const OSF = OpenScienceFramework
 export OSF
 
+struct OSFError <: Exception
+    message::String
+end
+Base.showerror(io::IO, e::OSFError) = print(io, e.message)
+
 include("highlevel.jl")
 include("artifacts.jl")
 
