@@ -361,6 +361,76 @@ end
     @test eventually_true(() -> !isdir(OSF.refresh(suite_root)))
 end
 
+@testset verbose=true "view-only client" begin
+    # Get view_only key and project ID using authenticated client
+    osf_auth = OSF.Client(; token)
+    proj_auth = OSF.project(osf_auth; title=project_title)
+    vo_key = only(OSF.view_only_links(proj_auth)).entity.attributes[:key]
+    proj_id = proj_auth.entity.id
+
+    # Ensure a known file exists
+    vo_dir = OSF.directory(proj_auth, test_name("viewonly")) |> mkpath
+    vo_file = OSF.file(vo_dir, "vo_test.txt")
+    write(vo_file, "view only content")
+    vo_file = eventually(() -> OSF.refresh(vo_file))
+
+    # Create tokenless client with view_only
+    osf_vo = OSF.Client(token=nothing, view_only=vo_key)
+
+    @testset "project access by ID" begin
+        proj = OSF.project(osf_vo, proj_id)
+        @test proj isa OSF.Project
+        @test proj.entity.attributes[:title] == project_title
+        @test proj.entity.attributes[:public] == false
+    end
+
+    @testset "readdir and directory navigation" begin
+        proj = OSF.project(osf_vo, proj_id)
+        entries = readdir(proj)
+        @test !isempty(entries)
+        @test any(e -> basename(e) == basename(vo_dir), entries)
+
+        dir = only(filter(e -> basename(e) == basename(vo_dir), entries))
+        @test dir isa OSF.Directory
+        inner = readdir(dir)
+        @test any(e -> basename(e) == "vo_test.txt", inner)
+    end
+
+    @testset "joinpath" begin
+        proj = OSF.project(osf_vo, proj_id)
+        f = joinpath(proj, basename(vo_dir), "vo_test.txt")
+        @test f isa OSF.File
+        @test basename(f) == "vo_test.txt"
+    end
+
+    @testset "file read" begin
+        proj = OSF.project(osf_vo, proj_id)
+        f = joinpath(proj, basename(vo_dir), "vo_test.txt")
+        @test read(f, String) == "view only content"
+    end
+
+    @testset "url" begin
+        proj = OSF.project(osf_vo, proj_id)
+        f = joinpath(proj, basename(vo_dir), "vo_test.txt")
+        u = OSF.url(f)
+        @test occursin("view_only", string(u))
+        @test download_as_string(u) == "view only content"
+    end
+
+    @testset "versions and version url" begin
+        proj = OSF.project(osf_vo, proj_id)
+        f = joinpath(proj, basename(vo_dir), "vo_test.txt")
+        vers = OSF.versions(f)
+        @test length(vers) >= 1
+        u = OSF.url(first(vers))
+        @test occursin("view_only", string(u))
+        @test download_as_string(u) == "view only content"
+    end
+
+    # Cleanup
+    rm(vo_dir)
+end
+
 @testset verbose=true "lowlevel" begin
     osf = nothing
     user = nothing

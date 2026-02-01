@@ -1,8 +1,11 @@
-function file_viewonly_url(file::Union{Entity{:files}, Entity{:file_versions}}, link::Entity{:view_only_links}, ltype::Symbol)
+function file_viewonly_url(file::Union{Entity{:files}, Entity{:file_versions}}, key::String, ltype::Symbol)
     uri = parse(HTTP.URI, file.links[ltype])
-    query = merge(HTTP.queryparams(uri), Dict("view_only" => link.attributes[:key]))
+    query = merge(HTTP.queryparams(uri), Dict("view_only" => key))
     return HTTP.URI(uri; query)
 end
+
+file_viewonly_url(file::Union{Entity{:files}, Entity{:file_versions}}, link::Entity{:view_only_links}, ltype::Symbol) =
+    file_viewonly_url(file, link.attributes[:key], ltype)
 
 function find_by_path(osf::Client, root::Entity{:files}, path::String)
     if root.attributes[:path] == "/"
