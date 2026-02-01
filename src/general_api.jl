@@ -6,6 +6,12 @@ import StructTypes
 using Parameters
 
 
+"""
+    Client(; token=nothing)
+
+OSF API client. Pass a personal access token for authenticated access to private projects and write operations.
+Create tokens at https://osf.io/settings/tokens. Without a token, only public projects are accessible.
+"""
 @with_kw struct Client
     api_version::String = "2"
     token::Union{String,Nothing} = nothing
