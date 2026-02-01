@@ -154,38 +154,41 @@ end
 
     d = readdir(proj)
     @test length(d) == 4
-    @test typeof(d[1]) == OSF.Directory && typeof(d[4]) == OSF.Directory
-    @test typeof(d[2]) == OSF.File && typeof(d[3]) == OSF.File
-    @test abspath.(d) == ["/folderB/", "/photoB.jpg", "/folder.txt", "/folderA/"]
+    @test sort(abspath.(filter(x -> x isa OSF.Directory, d))) == ["/folderA/", "/folderB/"]
+    @test sort(abspath.(filter(x -> x isa OSF.File, d))) == ["/folder.txt", "/photoB.jpg"]
 
     @test sort(abspath.(readdir(OSF.Directory, proj; storage="osfstorage"))) == ["/folderA/", "/folderB/"]
     @test read(joinpath(proj, "folder.txt"), String) == "this is folder"
     @test read(joinpath(proj, "folderA", "folderA1", "folderA1.txt"), String) == "this is folderA1"
-    
+
     wd = walkdir(proj) |> collect
-    @test map(x -> basename(x[1]), wd) == ["", "folderB", "folderA", "folderA2", "folderA1"]
-    @test map(x -> map(basename, x[2]), wd) == [["folderB", "folderA"], [], ["folderA2", "folderA1"], [], []]
-    @test map(x -> map(basename, x[3]), wd) == [["photoB.jpg", "folder.txt"], ["folderB.txt"], ["photoA.jpg", "folderA.txt"], ["folderA2.txt"], ["folderA1.txt"]]
+    @test sort(map(x -> basename(x[1]), wd)) == sort(["", "folderB", "folderA", "folderA2", "folderA1"])
+    @test sort(map(x -> sort(map(basename, x[2])), wd)) == sort([["folderA", "folderB"], [], ["folderA1", "folderA2"], [], []])
+    @test sort(map(x -> sort(map(basename, x[3])), wd)) == sort([["folder.txt", "photoB.jpg"], ["folderB.txt"], ["folderA.txt", "photoA.jpg"], ["folderA2.txt"], ["folderA1.txt"]])
 
     @test read(joinpath(OSF.directory(proj, "/"), "folder.txt"), String) == "this is folder"
-    @test read(wd[4][3][1], String) == "this is folderA2"
+    wd_folderA2 = only(filter(x -> basename(x[1]) == "folderA2", wd))
+    @test read(wd_folderA2[3][1], String) == "this is folderA2"
 
+    dir1 = first(filter(x -> x isa OSF.Directory, d))
     tmp = mktempdir()
-    eventually(() -> (cp(d[1], joinpath(tmp, basename(d[1]))); true))
-    @test isdir(joinpath(tmp, basename(d[1])))
-    @test_throws "exists" cp(d[1], joinpath(tmp, basename(d[1])))
-    eventually(() -> (cp(d[1], joinpath(tmp, basename(d[1])); force=true); true))
+    eventually(() -> (cp(dir1, joinpath(tmp, basename(dir1))); true))
+    @test isdir(joinpath(tmp, basename(dir1)))
+    @test_throws "exists" cp(dir1, joinpath(tmp, basename(dir1)))
+    eventually(() -> (cp(dir1, joinpath(tmp, basename(dir1)); force=true); true))
 
     # test downloading a whole folder with subfolders
-    eventually(() -> (cp(d[4], joinpath(tmp, basename(d[4])); force=true); true))
-    local_d4 = collect(walkdir(joinpath(tmp, basename(d[4]))))
-    remote_d4 = collect(walkdir(d[4]))
+    folderA = only(filter(x -> basename(x) == "folderA", d))
+    eventually(() -> (cp(folderA, joinpath(tmp, basename(folderA)); force=true); true))
+    local_d4 = collect(walkdir(joinpath(tmp, basename(folderA))))
+    remote_d4 = collect(walkdir(folderA))
 
     @test length(local_d4) == length(remote_d4)
     @test map(x -> basename(x[1]), local_d4) |> sort == map(x -> basename(x[1]), local_d4) |> sort
     @test map(x -> map(basename, x[2]), local_d4) .|> sort |> sort == map(x -> map(basename, x[2]), local_d4) .|> sort |> sort
     @test map(x -> map(basename, x[3]), local_d4) .|> sort |> sort == map(x -> map(basename, x[3]), local_d4) .|> sort |> sort
-    @test read(joinpath(local_d4[2][1], local_d4[2][3][1]), String) == "this is folderA1"
+    local_folderA1 = only(filter(x -> basename(x[1]) == "folderA1", local_d4))
+    @test read(joinpath(local_folderA1[1], local_folderA1[3][1]), String) == "this is folderA1"
 end
 
 @testset verbose=true "highlevel - authenticated" begin

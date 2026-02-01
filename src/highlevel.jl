@@ -29,7 +29,7 @@ List OSF projects (nodes) for a user. Optionally filter by exact `title`.
 function projects(c::API.Client; user::String="me", title::Union{Nothing,AbstractString}=nothing)
     user_e = API.get_entity(c, :users, user)
     filters = isnothing(title) ? [] : ["title" => String(title)]
-    nodes = API.relationship_complete(c, user_e, :nodes; filters)
+    nodes = API.relationship_complete(c, user_e, :nodes; filters, sort="date_modified")
     return [Project(c, node) for node in nodes]
 end
 
@@ -69,7 +69,7 @@ List components (child nodes) of a project. Optionally filter by exact `title`.
 """
 function components(parent::Project; title::Union{Nothing,AbstractString}=nothing)
     filters = isnothing(title) ? [] : ["title" => String(title)]
-    children = API.relationship_complete(client(parent), parent.entity, :children; etype=:nodes, filters)
+    children = API.relationship_complete(client(parent), parent.entity, :children; etype=:nodes, filters, sort="date_modified")
     return [Project(client(parent), child) for child in children]
 end
 
@@ -478,7 +478,7 @@ The type-filtered forms return only files or only directories.
 """
 function Base.readdir(proj::Project; storage=nothing)
     storage_e = (@__MODULE__).storage(proj, storage)
-    entities = API.relationship_complete(client(proj), storage_e, :files)
+    entities = API.relationship_complete(client(proj), storage_e, :files; sort="date_modified")
     [
         haskey(ent.relationships, :files) ? Directory(proj, storage_e, ent) : File(proj, storage_e, ent)
         for ent in entities
@@ -486,7 +486,7 @@ function Base.readdir(proj::Project; storage=nothing)
 end
 
 function Base.readdir(dir::Directory)
-    entities = API.relationship_complete(client(dir), dir.entity, :files)
+    entities = API.relationship_complete(client(dir), dir.entity, :files; sort="date_modified")
     [
         haskey(ent.relationships, :files) ? Directory(project(dir), dir.storage, ent) : File(project(dir), dir.storage, ent)
         for ent in entities
@@ -601,7 +601,7 @@ Get all versions of a file. Returns a `Vector{FileVersion}`.
 """
 versions(f::File) = [
     FileVersion(f, ent)
-    for ent in API.relationship_complete(client(f), f.entity, :versions, etype=:file_versions)
+    for ent in API.relationship_complete(client(f), f.entity, :versions, etype=:file_versions, sort="date_modified")
 ]
 
 """
