@@ -11,7 +11,26 @@ else
     read(joinpath(@__DIR__, "OSF_TOKEN"), String)
 end
 
-download_as_string(url) = String(take!(Downloads.download(string(url), IOBuffer())))
+const test_run_id = string(time_ns())
+test_name(prefix::AbstractString) = "$(prefix)_$(test_run_id)"
+
+function eventually(f::Function; timeout=30.0, interval=0.5)
+    deadline = time() + timeout
+    last_error = nothing
+    while true
+        try
+            return f()
+        catch err
+            last_error = err
+            time() >= deadline && rethrow(last_error)
+            sleep(interval)
+        end
+    end
+end
+
+download_as_string(url) = eventually() do
+    String(take!(Downloads.download(string(url), IOBuffer())))
+end
 
 @testset "artifacts" begin
     toml_file = "Artifacts.toml"
@@ -19,13 +38,15 @@ download_as_string(url) = String(take!(Downloads.download(string(url), IOBuffer(
     
     osf = OSF.Client(; token)
     proj = OSF.project(osf; title=project_title)
-	osf_dir = OSF.directory(proj, "artifacts_dir") |> mkpath
+    artifact_name = test_name("my_artifact")
+    tar_name = "$artifact_name.tar.gz"
+    osf_dir = OSF.directory(proj, test_name("artifacts_dir")) |> mkpath
     rm.(readdir(OSF.File, osf_dir))
-    OSF.create_upload_artifact("my_artifact"; osf_dir, toml_file) do dir
+    OSF.create_upload_artifact(artifact_name; osf_dir, toml_file) do dir
         write(joinpath(dir, "abc"), "def")
     end
-    @test isfile(OSF.file(osf_dir, "my_artifact.tar.gz"))
-    let meta = artifact_meta("my_artifact", toml_file)
+    @test isfile(OSF.file(osf_dir, tar_name))
+    let meta = artifact_meta(artifact_name, toml_file)
         @test meta["git-tree-sha1"] == "3278d58d97443073cc3ef9a20bdfcd18ba820558"
         @test meta["lazy"] == true
         @test occursin(r"^https://osf.io/download/\w+/\?revision=1&view_only=\w+$", only(meta["download"])["url"])
@@ -33,10 +54,10 @@ download_as_string(url) = String(take!(Downloads.download(string(url), IOBuffer(
 
     tmpdir = mktempdir()
     write(joinpath(tmpdir, "abc"), "xyz")
-    @test_throws Exception OSF.create_upload_artifact(tmpdir, "my_artifact"; osf_dir, toml_file)
-    OSF.create_upload_artifact(tmpdir, "my_artifact"; osf_dir, toml_file, update_existing=true)
-    @test OSF.file(osf_dir, "my_artifact.tar.gz") |> OSF.versions |> length == 2
-    let meta = artifact_meta("my_artifact", toml_file)
+    @test_throws Exception OSF.create_upload_artifact(tmpdir, artifact_name; osf_dir, toml_file)
+    OSF.create_upload_artifact(tmpdir, artifact_name; osf_dir, toml_file, update_existing=true)
+    @test OSF.file(osf_dir, tar_name) |> OSF.versions |> length == 2
+    let meta = artifact_meta(artifact_name, toml_file)
         @test meta["git-tree-sha1"] == "7542f7396ca040373e65f868767cc4dfdf3708db"
         @test occursin(r"^https://osf.io/download/\w+/\?revision=2&view_only=\w+$", only(meta["download"])["url"])
     end
@@ -52,6 +73,10 @@ end
     @test typeof(d[1]) == OSF.Directory && typeof(d[4]) == OSF.Directory
     @test typeof(d[2]) == OSF.File && typeof(d[3]) == OSF.File
     @test abspath.(d) == ["/folderB/", "/photoB.jpg", "/folder.txt", "/folderA/"]
+
+    @test sort(abspath.(readdir(OSF.Directory, proj; storage="osfstorage"))) == ["/folderA/", "/folderB/"]
+    @test read(joinpath(proj, "folder.txt"), String) == "this is folder"
+    @test read(joinpath(proj, "folderA", "folderA1", "folderA1.txt"), String) == "this is folderA1"
     
     wd = walkdir(proj) |> collect
     @test map(x -> basename(x[1]), wd) == ["", "folderB", "folderA", "folderA2", "folderA1"]
@@ -84,25 +109,20 @@ end
     proj = OSF.project(osf; title=project_title)
     @test startswith(sprint(show, proj), "OSF Project `Test_OSFjl_project`, id")
 
-    @sync for d in readdir(proj)
-        @async rm(d)
-    end
-    sleep(1)
+    suite_root = OSF.directory(proj, test_name("highlevel")) |> mkpath
+    @test isdir(suite_root)
 
-    @test readdir(OSF.Directory, proj) == []
-    @test readdir(proj) == []
-    dir = OSF.directory(proj, "mydir")
-    @test sprint(show, dir) == "OSF Directory `/mydir/` (doesn't exist)"
+    dir = OSF.directory(suite_root, "mydir")
+    @test sprint(show, dir) == "OSF Directory `$(abspath(dir))` (doesn't exist)"
     @test !isdir(dir)
     dir = mkdir(dir)
-    sleep(1)
-    dir_r = OSF.refresh(dir)
-    @test sprint(show, dir) == "OSF Directory `/mydir/`"
+    dir_r = eventually(() -> OSF.refresh(dir))
+    @test sprint(show, dir) == "OSF Directory `$(abspath(dir))`"
     @test !islink(dir)
     @test isdir(dir)
     @test isdir(dir_r)
     @test abspath(dir) == abspath(dir_r)
-    @test [basename(d) for d in readdir(OSF.Directory, proj)] == ["mydir"]
+    @test [basename(d) for d in readdir(OSF.Directory, suite_root)] == ["mydir"]
     
     @test readdir(OSF.Directory, dir) == []
     subdir = OSF.directory(dir, "mysubdir")
@@ -117,14 +137,14 @@ end
 
     @test [basename(d) for d in readdir(OSF.File, dir)] == []
     file = OSF.file(dir, "myfile.txt")
-    @test sprint(show, file) == "OSF File `/mydir/myfile.txt` (doesn't exist)"
+    @test sprint(show, file) == "OSF File `$(abspath(file))` (doesn't exist)"
     @test !isfile(file)
     @test joinpath(dir, file) == file
     @test_throws MethodError joinpath(file, dir)
 
     write(file, "my file content")
-    file = OSF.refresh(file)
-    @test sprint(show, file) == "OSF File `/mydir/myfile.txt` (15 bytes)"
+    file = eventually(() -> OSF.refresh(file))
+    @test sprint(show, file) == "OSF File `$(abspath(file))` (15 bytes)"
     @test joinpath(dir, file) == file
     @test [basename(d) for d in readdir(OSF.File, dir)] == ["myfile.txt"]
     @test basename.(readdir(dir)) == ["mysubdir", "myfile.txt"]
@@ -171,7 +191,7 @@ end
 
     let fname = tempname()
         cp(file, fname)
-        file = OSF.refresh(file)
+        file = eventually(() -> OSF.refresh(file))
         @test_throws Exception cp(file, fname)
         cp(file, fname; force=true)
         @test read(fname, String) == "more from file"
@@ -185,7 +205,13 @@ end
     @test map(x -> map(basename, x[3]), wd) == [["myfile.txt"], []]
 
     rm(file)
-    @test !isfile(OSF.refresh(file))
+    @test !isfile(eventually(() -> OSF.refresh(file)))
+    rm(subdir)
+    @test !isdir(eventually(() -> OSF.refresh(subdir)))
+    rm(dir)
+    @test !isdir(eventually(() -> OSF.refresh(dir)))
+    rm(suite_root)
+    @test !isdir(eventually(() -> OSF.refresh(suite_root)))
 end
 
 @testset verbose=true "lowlevel" begin

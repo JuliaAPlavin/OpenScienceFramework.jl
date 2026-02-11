@@ -213,15 +213,19 @@ function Base.joinpath(parent::Directory, name::AbstractString)
     path = "$(rstrip(abspath(parent), '/'))/$(lstrip(name, '/'))"  # not joinpath() because on windows it uses \
     @assert startswith(path, "/")  path
     entity = API.find_by_path(client(parent), parent.entity, path)
+    if isnothing(entity)
+        entity = API.find_by_path(client(parent), parent.entity, path * "/")
+    end
     isnothing(entity) && error("File/directory $path doesn't exist. Use `OSF.file(...)` or `OSF.directory(...)` to handle nonexistent entries.")
     if entity.attributes[:kind] == "folder"
-        @assert entity.attributes[:path] == "/" || entity.attributes[:materialized_path] == path
+        @assert entity.attributes[:path] == "/" || entity.attributes[:materialized_path] in (path, path * "/")
         return Directory(project(parent), parent.storage, entity)
     else
         return File(project(parent), parent.storage, entity)
     end
 end
 
+Base.joinpath(parent::Project, name::AbstractString) = joinpath(directory(parent, "/"), name)
 Base.joinpath(parent::Union{Directory,Project}, names::AbstractString...) = foldl(joinpath, names; init=parent)
 
 """
@@ -323,8 +327,8 @@ function Base.readdir(dir::Directory)
     ]
 end
 
-Base.readdir(::Type{Directory}, dir::Union{Project,Directory}; kwargs...) = filter(isdir, readdir(dir); kwargs...)
-Base.readdir(::Type{File}, dir::Union{Project,Directory}; kwargs...) = filter(isfile, readdir(dir); kwargs...)
+Base.readdir(::Type{Directory}, dir::Union{Project,Directory}; kwargs...) = filter(isdir, readdir(dir; kwargs...))
+Base.readdir(::Type{File}, dir::Union{Project,Directory}; kwargs...) = filter(isfile, readdir(dir; kwargs...))
 
 
 """

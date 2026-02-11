@@ -15,6 +15,24 @@ create_upload_artifact(dir::AbstractString, args...; kwargs...) =
         cp(dir, art_dir; force=true)
     end
 
+function uploaded_file_versions(osf_dir::Directory, tar_name::AbstractString; timeout=30.0, interval=0.5)
+    deadline = time() + timeout
+    last_error = nothing
+    while true
+        try
+            osf_file = OSF.file(osf_dir, tar_name)
+            isfile(osf_file) || error("Uploaded file isn't visible yet: $tar_name")
+            versions = OSF.versions(osf_file)
+            isempty(versions) && error("No uploaded versions visible yet: $tar_name")
+            return osf_file, versions
+        catch err
+            last_error = err
+            time() >= deadline && rethrow(last_error)
+            sleep(interval)
+        end
+    end
+end
+
 function create_upload_artifact(func::Function, artifact_name::AbstractString; osf_dir::Directory, toml_file::AbstractString, update_existing=false, lazy=true)
     tar_name = "$artifact_name.tar.gz"
 	osf_file = OSF.file(osf_dir, tar_name)
@@ -38,14 +56,14 @@ function create_upload_artifact(func::Function, artifact_name::AbstractString; o
         @info "Uploading" from=tar_path to=abspath(osf_file)
 		cp(tar_path, osf_file; force=update_existing)
         tar_hash
-    end
+	    end
 
-    @info "Determining url" artifact_name
-	osf_file = OSF.file(osf_dir, tar_name)
-	url = OSF.versions(osf_file) |> maximum |> OSF.url |> string
+	    @info "Determining url" artifact_name
+        _, file_versions = uploaded_file_versions(osf_dir, tar_name)
+		url = file_versions |> maximum |> OSF.url |> string
 
-    @info "Binding artifact" artifact_name url
-    bind_artifact!(
+	    @info "Binding artifact" artifact_name url
+	    bind_artifact!(
         toml_file, artifact_name, hash;
         download_info=[(url, tar_hash)],
         lazy,
