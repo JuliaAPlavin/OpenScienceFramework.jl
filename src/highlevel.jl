@@ -239,10 +239,18 @@ refresh(d::Union{Directory, DirectoryNonexistent}) = directory(project(d), abspa
 
 
 Base.mkpath(d::Directory) = d
-Base.mkpath(d::DirectoryNonexistent) = mkdir(d)
+function Base.mkpath(d::DirectoryNonexistent)
+    parent_d = directory(project(d), dirname(dirname(d.path)); d.storage)
+    if parent_d isa DirectoryNonexistent
+        mkpath(parent_d)
+    end
+    return mkdir(d)
+end
 function Base.mkdir(d::DirectoryNonexistent)
     @assert dirname(d.path) * "/" == d.path  d.path
     parent_d = directory(project(d), dirname(dirname(d.path)); d.storage)
+    parent_d isa DirectoryNonexistent &&
+        throw(OSFError("Parent directory doesn't exist in OSF: $(abspath(parent_d)). Use `mkpath(...)` to create it recursively."))
     API.create_folder(client(d), parent_d.entity, basename(d))
     return directory(project(d), d.path; d.storage)
 end
@@ -254,7 +262,7 @@ Delete a file or directory from OSF. Returns the corresponding `Nonexistent` wra
 """
 function Base.rm(d::Directory)
     API.delete(client(d), d.entity)
-    return nothing
+    return DirectoryNonexistent(project(d), d.storage, abspath(d))
 end
 
 function Base.rm(f::FileNonexistent; force::Bool=false)
@@ -263,7 +271,7 @@ function Base.rm(f::FileNonexistent; force::Bool=false)
 end
 function Base.rm(f::File; force::Bool=false)
     API.delete(client(f), f.entity)
-    return nothing
+    return FileNonexistent(project(f), f.storage, abspath(f))
 end
 
 """
