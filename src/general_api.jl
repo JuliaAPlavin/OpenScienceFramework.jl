@@ -14,7 +14,7 @@ Create tokens at https://osf.io/settings/tokens. Without a token, only public pr
 """
 @with_kw struct Client
     api_version::String = "2"
-    token::Union{String,Nothing} = nothing
+    token::Union{String,Nothing} = get(ENV, "OSF_TOKEN", nothing)
 end
 
 headers(osf::Client) = isnothing(osf.token) ? [] : ["Authorization" => "Bearer $(osf.token)"]
@@ -80,7 +80,16 @@ function get_entity(osf::Client, endpoint::Symbol, id::String)
 end
 
 create_entity(osf::Client, type::String, attributes::Dict) = request(osf, Val(:POST), "$type/", Dict, payload=Dict("data" => Dict("type" => type, "attributes" => attributes)))
-delete(osf::Client, e::Entity) = request(osf, Val(:DELETE), e.links[:delete], Nothing)
+function delete(osf::Client, e::Entity)
+    delete_url = if haskey(e.links, :delete)
+        e.links[:delete]
+    elseif haskey(e.links, :self)
+        e.links[:self]
+    else
+        throw(ArgumentError("Entity of type $(e.type) does not expose :delete or :self link for deletion."))
+    end
+    request(osf, Val(:DELETE), delete_url, Nothing)
+end
 
 
 mutable struct EntityCollection{T}
