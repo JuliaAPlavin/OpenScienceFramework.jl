@@ -546,6 +546,18 @@ struct ViewOnlyLink
     entity::API.Entity{:view_only_links}
 end
 
+function ViewOnlyLink(key::String)
+    e = API.Entity{:view_only_links}()
+    e.type = "view_only_links"
+    e.attributes = Dict{Symbol, Any}(:key => key)
+    return ViewOnlyLink(e)
+end
+
+function ViewOnlyLink(c::API.Client)
+    isnothing(c.view_only) && throw(OSFError("Client has no view_only key"))
+    return ViewOnlyLink(c.view_only)
+end
+
 """
     view_only_links(proj::Project)
 
@@ -601,9 +613,16 @@ Without a `ViewOnlyLink`, uses the public download link for public projects,
 or automatically looks up the project's view-only link for private projects.
 """
 url(f::Union{File,FileVersion}, vo_link::ViewOnlyLink) = API.file_viewonly_url(f.entity, vo_link.entity, :download)
-url(f) = project(f).entity.attributes[:public] ?
-    f.entity.links[:download] :  # public download link
-    url(f, only(view_only_links(project(f))))  # project-specific view-only link
+function url(f)
+    proj = project(f)
+    if proj.entity.attributes[:public]
+        f.entity.links[:download]
+    elseif !isnothing(client(proj).view_only)
+        url(f, ViewOnlyLink(client(proj)))
+    else
+        url(f, only(view_only_links(proj)))
+    end
+end
 
 """
     read(f::Union{File, FileVersion})

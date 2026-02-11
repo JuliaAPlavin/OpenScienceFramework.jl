@@ -7,14 +7,18 @@ using Parameters
 
 
 """
-    Client(; token=nothing)
+    Client(; token=nothing, view_only=nothing)
 
 OSF API client. Pass a personal access token for authenticated access to private projects and write operations.
 Create tokens at https://osf.io/settings/tokens. Without a token, only public projects are accessible.
+
+Alternatively, pass a `view_only` key (from a view-only link) for read-only access to a private project without a token.
+Use `project(client, id)` to access the project by its ID.
 """
 @with_kw struct Client
     api_version::String = "2"
     token::Union{String,Nothing} = get(ENV, "OSF_TOKEN", nothing)
+    view_only::Union{String,Nothing} = nothing
 end
 
 headers(osf::Client) = isnothing(osf.token) ? [] : ["Authorization" => "Bearer $(osf.token)"]
@@ -25,7 +29,15 @@ result_to(T::Type{Nothing}, r::HTTP.Response) = @assert isempty(r.body);
 result_to(T::Type{String}, r::HTTP.Response) = String(r.body)
 result_to(T::Type{Dict}, r::HTTP.Response) = copy(JSON.read(String(r.body)))
 result_to(T::Type, r::HTTP.Response) = JSON.read(String(r.body), T)
-resource_url(osf::Client, x::String) = occursin(r"^https?://", x) ? x : "https://api.osf.io/v$(osf.api_version)/$x"
+function resource_url(osf::Client, x::String)
+    url = occursin(r"^https?://", x) ? x : "https://api.osf.io/v$(osf.api_version)/$x"
+    if !isnothing(osf.view_only)
+        uri = parse(HTTP.URI, url)
+        query = merge(HTTP.queryparams(uri), Dict("view_only" => osf.view_only))
+        url = string(HTTP.URI(uri; query))
+    end
+    return url
+end
 
 function request(osf::Client, ::Val{:GET}, resource, T)::T
     r = HTTP.get(resource_url(osf, resource), headers(osf))
