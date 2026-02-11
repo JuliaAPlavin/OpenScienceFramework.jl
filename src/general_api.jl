@@ -121,11 +121,11 @@ is_complete(ec::EntityCollection) = length(ec.data) == ec.links["meta"]["total"]
 has_next(ec::EntityCollection) = !isnothing(ec.links["next"])
 get_next(osf::Client, ec::EntityCollection{T}) where {T} = get_collection(osf, ec.links["next"], etype=T)
 
-function relationship(osf::Client, entity::Entity, relationship::Symbol; etype::Union{Nothing, Symbol}=relationship, filters::Vector=[], page_size::Int=100)
+function relationship(osf::Client, entity::Entity, relationship::Symbol; etype::Union{Nothing, Symbol}=relationship, filters::Vector=[], page_size::Int=50)
     return get_collection(osf, entity.relationships[relationship]["links"]["related"]["href"]; filters, etype, page_size)
 end
 
-function get_collection(osf::Client, endpoint::String; filters::Vector=[], etype=nothing, page_size::Int=100)
+function get_collection(osf::Client, endpoint::String; filters::Vector=[], etype=nothing, page_size::Int=50)
     uri = parse(HTTP.URI, endpoint)
     query = merge(HTTP.queryparams(uri), Dict("filter[$field]" => value for (field, value) in filters), Dict("page[size]" => string(page_size), "sort" => "date_modified"))
     uri = HTTP.URI(uri; query)
