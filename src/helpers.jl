@@ -16,7 +16,7 @@ function find_by_path(osf::Client, root::Entity{:files}, path::String)
         startswith(path, root.attributes[:materialized_path]) || return nothing
     end
     root.attributes[:kind] == "file" && return nothing
-    files = relationship_complete(osf, root, :files)
+    files = relationship_complete(osf, root, :files; sort="date_modified")
     found = map(files) do file
         find_by_path(osf, file, path)
     end
@@ -24,8 +24,8 @@ function find_by_path(osf::Client, root::Entity{:files}, path::String)
     isempty(found) ? nothing : only(found)
 end
 
-function relationship_complete(osf::Client, entity::Entity, rel::Symbol; kwargs...)
-    es = relationship(osf, entity, rel; kwargs...)
+function relationship_complete(osf::Client, entity::Entity, rel::Symbol; sort::Union{String,Nothing}=nothing, kwargs...)
+    es = relationship(osf, entity, rel; sort, kwargs...)
     entities = es.data
     while has_next(es)
         es = get_next(osf, es)
@@ -35,9 +35,9 @@ function relationship_complete(osf::Client, entity::Entity, rel::Symbol; kwargs.
     return entities
 end
 
-readdir(osf, dir::Entity{:files}) = [f.attributes[:name] for f in relationship_complete(osf, dir, :files)]
+readdir(osf, dir::Entity{:files}) = [f.attributes[:name] for f in relationship_complete(osf, dir, :files; sort="date_modified")]
 readtree(osf, dir::Entity{:files}) = [
     v.attributes[:materialized_path] => v
-    for f in relationship_complete(osf, dir, :files)
+    for f in relationship_complete(osf, dir, :files; sort="date_modified")
     for (_, v) in (haskey(f.relationships, :files) ? readtree(osf, f) : [(nothing, f)])
 ]
