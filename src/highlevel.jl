@@ -203,12 +203,35 @@ Base.basename(d::FileNonexistent) = basename(d.path)
 Base.abspath(d::FileNonexistent) = d.path
 Base.filesize(d::FileNonexistent) = 0
 
+"""
+    Nonexistent
+
+A reference to a path in OSF that doesn't exist yet, without specifying whether it's a file or directory.
+Returned by `joinpath` when the path is not found.
+Convert to [`FileNonexistent`](@ref) or [`DirectoryNonexistent`](@ref) to perform file/directory-specific operations.
+"""
+struct Nonexistent
+    project::Project
+    storage::API.Entity{:files}
+    path::String
+end
+
+project(x::Nonexistent) = x.project
+Base.isdir(::Nonexistent) = false
+Base.isfile(::Nonexistent) = false
+Base.basename(d::Nonexistent) = basename(d.path)
+Base.abspath(d::Nonexistent) = d.path
+
+FileNonexistent(n::Nonexistent) = FileNonexistent(n.project, n.storage, n.path)
+DirectoryNonexistent(n::Nonexistent) = DirectoryNonexistent(n.project, n.storage, endswith(n.path, "/") ? n.path : n.path * "/")
+
 
 Base.show(io::IO, p::Project) = print(io, "OSF Project `$(p.entity.attributes[:title])`, id $(p.entity.id)")
 Base.show(io::IO, x::Directory) = print(io, "OSF Directory `$(abspath(x))`")
 Base.show(io::IO, x::File) = print(io, "OSF File `$(abspath(x))` ($(Base.format_bytes(filesize(x))))")
 Base.show(io::IO, x::DirectoryNonexistent) = print(io, "OSF Directory `$(x.path)` (doesn't exist)")
 Base.show(io::IO, x::FileNonexistent) = print(io, "OSF File `$(x.path)` (doesn't exist)")
+Base.show(io::IO, x::Nonexistent) = print(io, "OSF `$(x.path)` (doesn't exist)")
 
 
 Base.islink(a::Union{Directory,File}) = false
@@ -251,6 +274,7 @@ function directory(parent::Directory, name::AbstractString)
 end
 
 directory(f::Union{File, FileNonexistent}) = directory(project(f), dirname(abspath(f)); f.storage)
+directory(n::Nonexistent) = directory(project(n), dirname(abspath(n)); n.storage)
 
 """
     file(parent::Directory, name)
@@ -277,10 +301,11 @@ end
     joinpath(parent::Directory, name::AbstractString)
     joinpath(parent, names::AbstractString...)
 
-Navigate to a child file or directory by name. The entry must exist — errors otherwise.
-Use [`file`](@ref) or [`directory`](@ref) to reference entries that may not exist yet.
+Navigate to a child file or directory by name. Returns the existing [`File`](@ref) or [`Directory`](@ref) if found,
+or a [`Nonexistent`](@ref) wrapper if the path doesn't exist.
+Use [`file`](@ref) or [`directory`](@ref) to explicitly reference a file or directory that may not exist yet.
 """
-function Base.joinpath(a::Union{Directory,Project}, b::Union{Directory,File,DirectoryNonexistent,FileNonexistent})
+function Base.joinpath(a::Union{Directory,Project}, b::Union{Directory,File,DirectoryNonexistent,FileNonexistent,Nonexistent})
     pa, pb = abspath(a), abspath(b)
     if startswith(pb, pa)
         return b
@@ -297,7 +322,7 @@ function Base.joinpath(parent::Directory, name::AbstractString)
     if isnothing(entity)
         entity = API.find_by_path(client(parent), parent.entity, path * "/")
     end
-    isnothing(entity) && error("File/directory $path doesn't exist. Use `OSF.file(...)` or `OSF.directory(...)` to handle nonexistent entries.")
+    isnothing(entity) && return Nonexistent(project(parent), parent.storage, path)
     if entity.attributes[:kind] == "folder"
         @assert entity.attributes[:path] == "/" || entity.attributes[:materialized_path] in (path, path * "/")
         return Directory(project(parent), parent.storage, entity)
@@ -306,8 +331,14 @@ function Base.joinpath(parent::Directory, name::AbstractString)
     end
 end
 
+function Base.joinpath(parent::Nonexistent, name::AbstractString)
+    @assert !occursin("/", strip(name, '/'))  name
+    path = "$(rstrip(abspath(parent), '/'))/$(lstrip(name, '/'))"
+    return Nonexistent(project(parent), parent.storage, path)
+end
+
 Base.joinpath(parent::Project, name::AbstractString) = joinpath(directory(parent, "/"), name)
-Base.joinpath(parent::Union{Directory,Project}, names::AbstractString...) = foldl(joinpath, names; init=parent)
+Base.joinpath(parent::Union{Directory,Project,Nonexistent}, names::AbstractString...) = foldl(joinpath, names; init=parent)
 
 """
     refresh(entry)
@@ -317,9 +348,12 @@ Useful after modifications to get updated metadata.
 """
 refresh(f::Union{File, FileNonexistent}) = file(directory(f), basename(f))
 refresh(d::Union{Directory, DirectoryNonexistent}) = directory(project(d), abspath(d); d.storage)
+refresh(n::Nonexistent) = joinpath(directory(project(n), dirname(abspath(n)); n.storage), basename(n))
 
 
 Base.mkpath(d::Directory) = d
+Base.mkpath(d::Nonexistent) = mkpath(DirectoryNonexistent(d))
+Base.mkdir(d::Nonexistent) = mkdir(DirectoryNonexistent(d))
 function Base.mkpath(d::DirectoryNonexistent)
     parent_d = directory(project(d), dirname(dirname(d.path)); d.storage)
     if parent_d isa DirectoryNonexistent
@@ -352,6 +386,7 @@ function Base.rm(d::Directory)
     return DirectoryNonexistent(project(d), d.storage, abspath(d))
 end
 
+Base.rm(n::Nonexistent; force::Bool=false) = rm(FileNonexistent(n); force)
 function Base.rm(f::FileNonexistent; force::Bool=false)
     force && return nothing
     throw(OSFError("File doesn't exist in OSF: $(abspath(f))"))
@@ -369,6 +404,7 @@ end
 Copy files between local filesystem and OSF. Works in both directions.
 Use `force=true` to overwrite existing files. Copying a `Directory` downloads all its contents recursively.
 """
+Base.cp(src::AbstractString, dst::Nonexistent; force::Bool=false) = cp(src, FileNonexistent(dst); force)
 function Base.cp(src::AbstractString, dst::FileNonexistent; force::Bool=false)
     open(io -> write(dst, io), src, "r")
     return dst
@@ -421,6 +457,7 @@ function Base.write(f::File, content)
     return nbytes
 end
 
+Base.write(f::Nonexistent, content) = write(FileNonexistent(f), content)
 function Base.write(f::FileNonexistent, content)
     payload, nbytes = upload_payload(content)
     API.upload_file(client(f), directory(f).entity, basename(f), payload)
