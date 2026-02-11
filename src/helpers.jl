@@ -31,6 +31,7 @@ function relationship_complete(osf::Client, entity::Entity, rel::Symbol; kwargs.
         es = get_next(osf, es)
         append!(entities, es.data)
     end
+    unique!(e -> e.id, entities)
     return entities
 end
 
