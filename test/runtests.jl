@@ -40,7 +40,7 @@ function eventually_true(f::Function; timeout=30.0, interval=0.5)
             last_error = err
         end
         if time() >= deadline
-            isnothing(last_error) || rethrow(last_error)
+            isnothing(last_error) || throw(last_error)
             error("Condition wasn't met before timeout; last result: $(repr(last_result))")
         end
         sleep(interval)
@@ -161,7 +161,7 @@ end
     @test joinpath(dir, file) == file
     @test_throws MethodError joinpath(file, dir)
 
-    write(file, "my file content")
+    @test write(file, "my file content") == length("my file content")
     file = eventually(() -> OSF.refresh(file))
     @test sprint(show, file) == "OSF File `$(abspath(file))` (15 bytes)"
     @test joinpath(dir, file) == file
@@ -176,7 +176,7 @@ end
     url_ver1 = OSF.url(OSF.versions(file) |> only)
     @test download_as_string(url_ver1) == "my file content"
 
-    write(file, b"some new content")
+    @test write(file, b"some new content") == length(b"some new content")
     @test eventually_true(() -> read(file, String) == "some new content")
     @test eventually_true(() -> read(file) == b"some new content")
     @test eventually_true(() -> length(OSF.versions(file)) == 2)
@@ -189,7 +189,7 @@ end
     let fname = tempname()
         write(fname, "content from file")
         open(fname) do io
-            write(file, io)  # method specific to OSF.File - not in Base
+            @test write(file, io) == length("content from file")
         end
     end
     @test eventually_true(() -> read(file, String) == "content from file")
@@ -197,8 +197,8 @@ end
 
     mktemp() do path, _
         write(path, "more from file")
-        @test_throws Exception cp(path, file)
-        cp(path, file; force=true)
+        @test_throws OSF.OSFError cp(path, file)
+        @test cp(path, file; force=true) == file
     end
     @test eventually_true(() -> read(file, String) == "more from file")
     @test eventually_true(() -> length(OSF.versions(file)) == 4)
@@ -209,7 +209,7 @@ end
     @test download_as_string(url_file) == "more from file"
 
     let fname = tempname()
-        cp(file, fname)
+        @test cp(file, fname) == fname
         file = eventually(() -> OSF.refresh(file))
         @test_throws Exception cp(file, fname)
         cp(file, fname; force=true)
@@ -238,19 +238,22 @@ end
     @test basename(weird_file) == weird_file_name
     @test read(weird_file, String) == "special content"
 
-    rm(weird_file)
-    @test !isfile(eventually(() -> OSF.refresh(weird_file)))
-    rm(weird_dir)
-    @test !isdir(eventually(() -> OSF.refresh(weird_dir)))
+    @test rm(weird_file) === nothing
+    @test eventually_true(() -> !isfile(OSF.refresh(weird_file)))
+    @test rm(weird_dir) === nothing
+    @test eventually_true(() -> !isdir(OSF.refresh(weird_dir)))
 
-    rm(file)
-    @test !isfile(eventually(() -> OSF.refresh(file)))
-    rm(subdir)
-    @test !isdir(eventually(() -> OSF.refresh(subdir)))
-    rm(dir)
-    @test !isdir(eventually(() -> OSF.refresh(dir)))
-    rm(suite_root)
-    @test !isdir(eventually(() -> OSF.refresh(suite_root)))
+    @test_throws OSF.OSFError rm(OSF.file(dir, "missing_$(test_name("file")).txt"))
+    @test_throws OSF.OSFError cp(OSF.file(dir, "missing_$(test_name("file")).txt"), tempname())
+
+    @test rm(file) === nothing
+    @test eventually_true(() -> !isfile(OSF.refresh(file)))
+    @test rm(subdir) === nothing
+    @test eventually_true(() -> !isdir(OSF.refresh(subdir)))
+    @test rm(dir) === nothing
+    @test eventually_true(() -> !isdir(OSF.refresh(dir)))
+    @test rm(suite_root) === nothing
+    @test eventually_true(() -> !isdir(OSF.refresh(suite_root)))
 end
 
 @testset verbose=true "lowlevel" begin
