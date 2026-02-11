@@ -1,3 +1,15 @@
+"""
+    create_upload_artifact(local_dir, artifact_name; osf_dir, toml_file, update_existing=false, lazy=true)
+    create_upload_artifact(func, artifact_name; osf_dir, toml_file, update_existing=false, lazy=true)
+
+Create a Julia `Artifact` from a local directory (or a `func` that populates one),
+compress it as `.tar.gz`, upload to `osf_dir` on OSF, and bind it in `toml_file`.
+
+- `osf_dir`: the OSF [`Directory`](@ref) to upload the archive to.
+- `toml_file`: path to `Artifacts.toml` to update with download info.
+- `update_existing`: set to `true` to overwrite an existing artifact and OSF file.
+- `lazy`: whether the artifact should be downloaded lazily (default `true`).
+"""
 create_upload_artifact(dir::AbstractString, args...; kwargs...) =
     create_upload_artifact(args...; kwargs...) do art_dir
         cp(dir, art_dir; force=true)
