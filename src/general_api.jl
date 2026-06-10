@@ -40,6 +40,13 @@ function resource_url(osf::Client, x::String)
     return url
 end
 
+"""
+    request(client, method::Val, resource, T; kwargs...)
+
+Perform an HTTP request to the OSF API. `method` is a `Val{:GET}`, `Val{:POST}`, etc.
+`resource` is the API endpoint path or full URL. `T` is the expected response type.
+Returns the parsed response of type `T`.
+"""
 function request(osf::Client, ::Val{:GET}, resource, T)::T
     r = HTTP.get(resource_url(osf, resource), headers(osf))
     return result_to(T, r)
@@ -56,6 +63,12 @@ function request(osf::Client, ::Val{method}, resource, T; payload="", content_ty
 end
 
 
+"""
+    Entity{T}
+
+Represents a single OSF API entity (node, file, user, etc.) of type `T`.
+Contains metadata such as `id`, `links`, `attributes`, and `relationships`.
+"""
 mutable struct Entity{T}
     type::String
     id::String
@@ -79,6 +92,12 @@ Base.convert(::Type{Entity{nothing}}, e::Entity{nothing}) = e
 Base.convert(::Type{Entity{T}}, e::Entity{nothing}) where {T} = Entity{T}(e)
 StructTypes.StructType(::Type{<:Entity}) = StructTypes.Mutable()
 
+"""
+    EntityContainer{T}
+
+Wrapper that holds a single [`Entity`](@ref) of type `T` along with response metadata.
+Returned by API endpoints that return a single resource.
+"""
 mutable struct EntityContainer{T}
     meta::Dict
     data::Entity{T}
@@ -87,12 +106,30 @@ end
 StructTypes.StructType(::Type{<:EntityContainer}) = StructTypes.Mutable()
 
 
+"""
+    get_entity(client, endpoint::Symbol, id::String)
+
+Fetch a single entity from the OSF API by endpoint and ID.
+Returns a typed [`Entity`](@ref).
+"""
 function get_entity(osf::Client, endpoint::Symbol, id::String)
     r = request(osf, Val(:GET), "$endpoint/$id", EntityContainer{nothing})
     return convert(Entity{endpoint}, r.data)
 end
 
+"""
+    create_entity(client, type::String, attributes::Dict)
+
+Create a new entity on the OSF API. `type` is the resource type (e.g. `"nodes"`),
+and `attributes` is a dictionary of fields to set.
+"""
 create_entity(osf::Client, type::String, attributes::Dict) = request(osf, Val(:POST), "$type/", Dict, payload=Dict("data" => Dict("type" => type, "attributes" => attributes)))
+
+"""
+    delete(client, entity::Entity)
+
+Delete an entity from the OSF API by its ID.
+"""
 function delete(osf::Client, e::Entity)
     delete_url = if haskey(e.links, :delete)
         e.links[:delete]
@@ -105,6 +142,12 @@ function delete(osf::Client, e::Entity)
 end
 
 
+"""
+    EntityCollection{T}
+
+Represents a paginated collection of [`Entity`](@ref) objects of type `T`.
+Contains `data` (vector of entities), `links` (pagination info), and `meta`.
+"""
 mutable struct EntityCollection{T}
     links::Dict
     meta::Dict
@@ -125,6 +168,13 @@ has_next(ec::EntityCollection) = !isnothing(ec.links["next"])
 get_next(osf::Client, ec::EntityCollection{T}) where {T} =
     EntityCollection{T}(request(osf, Val(:GET), ec.links["next"], EntityCollection{nothing}))
 
+"""
+    relationship(client, entity::Entity, relationship::Symbol; kwargs...)
+
+Query a relationship of an entity, returning an [`EntityCollection`](@ref).
+Use keyword arguments `filters`, `page_size`, and `sort` to control the query.
+For paginated results, use [`relationship_complete`](@ref) to fetch all pages.
+"""
 function relationship(osf::Client, entity::Entity, relationship::Symbol; etype::Union{Nothing, Symbol}=relationship, filters::Vector=[], page_size::Int=50, sort::Union{String,Nothing}=nothing)
     return get_collection(osf, entity.relationships[relationship]["links"]["related"]["href"]; filters, etype, page_size, sort)
 end

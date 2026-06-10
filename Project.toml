@@ -19,3 +19,6 @@ Parameters = "0.12"
 Pkg = "1"
 StructTypes = "1.2"
 julia = "1.6"
+
+[workspace]
+projects = ["docs"]
