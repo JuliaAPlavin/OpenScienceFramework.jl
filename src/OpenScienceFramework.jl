@@ -1,5 +1,10 @@
 module OpenScienceFramework
 
+struct OSFError <: Exception
+    message::String
+end
+Base.showerror(io::IO, e::OSFError) = print(io, e.message)
+
 module API
 include("general_api.jl")
 include("waterbutler_api.jl")
@@ -12,11 +17,6 @@ using Pkg.Artifacts
 
 const OSF = OpenScienceFramework
 export OSF
-
-struct OSFError <: Exception
-    message::String
-end
-Base.showerror(io::IO, e::OSFError) = print(io, e.message)
 
 include("highlevel.jl")
 include("artifacts.jl")

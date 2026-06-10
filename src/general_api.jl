@@ -4,6 +4,7 @@ import HTTP
 import JSON3 as JSON
 import StructTypes
 using Parameters
+import ..OSFError
 
 
 """

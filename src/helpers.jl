@@ -24,14 +24,22 @@ function find_by_path(osf::Client, root::Entity{:files}, path::String)
     isempty(found) ? nothing : only(found)
 end
 
-function relationship_complete(osf::Client, entity::Entity, rel::Symbol; sort::Union{String,Nothing}=nothing, kwargs...)
-    es = relationship(osf, entity, rel; sort, kwargs...)
+# Pagination is only deterministic when sorted by a key unique within the listing:
+# OSF sorts in SQL per page request, returning ties in arbitrary varying order,
+# which duplicates+skips entries across pages (issue #8). For files, `name` is such a key.
+function relationship_complete(osf::Client, entity::Entity, rel::Symbol; kwargs...)
+    es = relationship(osf, entity, rel; kwargs...)
     entities = es.data
+    total = es.links["meta"]["total"]
     while has_next(es)
         es = get_next(osf, es)
+        es.links["meta"]["total"] == total ||
+            throw(OSFError("Inconsistent pagination of `$rel`: total changed from $total to $(es.links["meta"]["total"]) mid-listing, retry"))
         append!(entities, es.data)
     end
-    unique!(e -> e.id, entities)
+    n_unique = length(unique(e.id for e in entities))
+    n_unique == length(entities) == total ||
+        throw(OSFError("Incomplete listing of `$rel`: got $(length(entities)) entries ($n_unique unique), server reports $total"))
     return entities
 end
 
