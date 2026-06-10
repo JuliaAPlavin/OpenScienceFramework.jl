@@ -628,7 +628,8 @@ Get all versions of a file. Returns a `Vector{FileVersion}`.
 """
 versions(f::File) = [
     FileVersion(f, ent)
-    for ent in API.relationship_complete(client(f), f.entity, :versions, etype=:file_versions, sort="date_modified")
+    # newest first; `date_modified` is not a valid sort field for versions and would be silently ignored
+    for ent in API.relationship_complete(client(f), f.entity, :versions, etype=:file_versions, sort="-date_created")
 ]
 
 """
