@@ -119,7 +119,10 @@ StructTypes.StructType(::Type{<:EntityCollection}) = StructTypes.Mutable()
 
 is_complete(ec::EntityCollection) = length(ec.data) == ec.links["meta"]["total"]
 has_next(ec::EntityCollection) = !isnothing(ec.links["next"])
-get_next(osf::Client, ec::EntityCollection{T}) where {T} = get_collection(osf, ec.links["next"], etype=T)
+# the `next` link already encodes all query params (page, page[size], sort, filters);
+# re-merging defaults over it would corrupt pagination
+get_next(osf::Client, ec::EntityCollection{T}) where {T} =
+    EntityCollection{T}(request(osf, Val(:GET), ec.links["next"], EntityCollection{nothing}))
 
 function relationship(osf::Client, entity::Entity, relationship::Symbol; etype::Union{Nothing, Symbol}=relationship, filters::Vector=[], page_size::Int=50, sort::Union{String,Nothing}=nothing)
     return get_collection(osf, entity.relationships[relationship]["links"]["related"]["href"]; filters, etype, page_size, sort)
