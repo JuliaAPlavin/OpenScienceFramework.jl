@@ -113,13 +113,14 @@ end
 """
     storage(proj::Project, name::String)
 
-Get a storage provider for the project by name. Most projects use `"osfstorage"` (the default),
-but OSF also supports linked storage like Google Drive, S3, etc.
+Get a storage provider for the project by provider name. Most projects use `"osfstorage"` (the default),
+but OSF also supports linked storage like `"dropbox"`, `"googledrive"`, `"s3"`, etc.
 """
 storage(proj::Project, ::Nothing) = storage(proj, "osfstorage")
 storage(proj::Project, storage::String) = let
     storages = API.relationship(client(proj), proj.entity, :files).data
-    only(filter(s -> s.attributes[:name] == storage, storages))
+    # match on :provider — addon storages (dropbox, ...) have no :name attribute at all
+    only(filter(s -> s.attributes[:provider] == storage, storages))
 end
 storage(::Project, storage::API.Entity{:files}) = storage
 

@@ -9,7 +9,6 @@ file_viewonly_url(file::Union{Entity{:files}, Entity{:file_versions}}, link::Ent
 
 function find_by_path(osf::Client, root::Entity{:files}, path::String)
     if root.attributes[:path] == "/"
-        @assert root.attributes[:name] == "osfstorage"
         path == "/" && return root
     else
         root.attributes[:materialized_path] == path && return root
