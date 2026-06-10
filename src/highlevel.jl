@@ -505,7 +505,7 @@ The type-filtered forms return only files or only directories.
 """
 function Base.readdir(proj::Project; storage=nothing)
     storage_e = (@__MODULE__).storage(proj, storage)
-    entities = API.relationship_complete(client(proj), storage_e, :files; sort="date_modified")
+    entities = API.relationship_complete(client(proj), storage_e, :files; sort="name")
     [
         haskey(ent.relationships, :files) ? Directory(proj, storage_e, ent) : File(proj, storage_e, ent)
         for ent in entities
@@ -513,7 +513,7 @@ function Base.readdir(proj::Project; storage=nothing)
 end
 
 function Base.readdir(dir::Directory)
-    entities = API.relationship_complete(client(dir), dir.entity, :files; sort="date_modified")
+    entities = API.relationship_complete(client(dir), dir.entity, :files; sort="name")
     [
         haskey(ent.relationships, :files) ? Directory(project(dir), dir.storage, ent) : File(project(dir), dir.storage, ent)
         for ent in entities
