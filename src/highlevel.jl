@@ -29,7 +29,7 @@ List OSF projects (nodes) for a user. Optionally filter by exact `title`.
 function projects(c::API.Client; user::String="me", title::Union{Nothing,AbstractString}=nothing)
     user_e = API.get_entity(c, :users, user)
     filters = isnothing(title) ? [] : ["title" => String(title)]
-    nodes = API.relationship_complete(c, user_e, :nodes; filters, sort="date_modified")
+    nodes = API.relationship_complete(c, user_e, :nodes; filters, sort="date_modified,_id")
     return [Project(c, node) for node in nodes]
 end
 
@@ -69,7 +69,7 @@ List components (child nodes) of a project. Optionally filter by exact `title`.
 """
 function components(parent::Project; title::Union{Nothing,AbstractString}=nothing)
     filters = isnothing(title) ? [] : ["title" => String(title)]
-    children = API.relationship_complete(client(parent), parent.entity, :children; etype=:nodes, filters, sort="date_modified")
+    children = API.relationship_complete(client(parent), parent.entity, :children; etype=:nodes, filters, sort="date_modified,_id")
     return [Project(client(parent), child) for child in children]
 end
 
