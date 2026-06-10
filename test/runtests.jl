@@ -538,7 +538,8 @@ end
         @test sort([f.attributes[:materialized_path] for f in files]) == sort(["/test.txt"; ["/test_$i.txt" for i in 1:30]])
 
         # regression for issue #8: `next` links must be followed verbatim, preserving page[size]
-        files_small_pages = OSF.API.relationship_complete(osf, storage, :files; page_size=3)
+        # (sort by a unique key — unsorted multi-page osfstorage listings are nondeterministic server-side)
+        files_small_pages = OSF.API.relationship_complete(osf, storage, :files; page_size=3, sort="name")
         @test length(files_small_pages) == 31
         @test sort([f.id for f in files_small_pages]) == sort([f.id for f in files])
         @test OSF.API.find_by_path(osf, storage, "/test.txt").attributes[:materialized_path] == "/test.txt"
