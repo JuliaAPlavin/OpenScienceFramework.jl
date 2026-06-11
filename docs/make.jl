@@ -26,5 +26,4 @@ makedocs(
 deploydocs(
     repo = "github.com/PlaviAndrei/OpenScienceFramework.jl.git",
     branch = "gh-pages",
-    versions = nothing
 )
