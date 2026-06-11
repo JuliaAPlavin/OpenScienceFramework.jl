@@ -1,7 +1,7 @@
 """
     Project
 
-An OSF project. Obtain via [`project(client, id)`](@ref) or [`project(client; title=...)`](@ref).
+An OSF project. Obtain via [`project`](@ref) by ID or by title.
 Acts as a root directory — supports `readdir`, `joinpath`, `walkdir`.
 """
 struct Project
@@ -352,6 +352,12 @@ refresh(d::Union{Directory, DirectoryNonexistent}) = directory(project(d), abspa
 refresh(n::Nonexistent) = joinpath(directory(project(n), dirname(abspath(n)); n.storage), basename(n))
 
 
+"""
+    mkpath(d::DirectoryNonexistent)
+
+Create a directory and all missing parent directories recursively in OSF.
+Returns the created [`Directory`](@ref).
+"""
 Base.mkpath(d::Directory) = d
 Base.mkpath(d::Nonexistent) = mkpath(DirectoryNonexistent(d))
 Base.mkdir(d::Nonexistent) = mkdir(DirectoryNonexistent(d))
@@ -362,6 +368,14 @@ function Base.mkpath(d::DirectoryNonexistent)
     end
     return mkdir(d)
 end
+
+"""
+    mkdir(d::DirectoryNonexistent)
+
+Create a single directory in OSF. The parent directory must already exist.
+Use [`mkpath`](@ref) to create parent directories recursively.
+Returns the created [`Directory`](@ref).
+"""
 function Base.mkdir(d::DirectoryNonexistent)
     @assert dirname(d.path) * "/" == d.path  d.path
     parent_d = directory(project(d), dirname(dirname(d.path)); d.storage)
@@ -458,13 +472,6 @@ function Base.cp(src::Directory, dst::AbstractString; force::Bool=false)
     return dst
 end
 
-"""
-    write(f::File, content)
-    write(f::FileNonexistent, content)
-
-Upload `content` to OSF. Overwrites the file if it already exists, or creates a new file.
-`content` can be any IO-compatible object or byte data.
-"""
 function upload_payload(content)
     if content isa IO
         payload = read(content)
@@ -479,6 +486,13 @@ function upload_payload(content)
     end
 end
 
+"""
+    write(f::File, content)
+    write(f::FileNonexistent, content)
+
+Upload `content` to OSF. Overwrites the file if it already exists, or creates a new file.
+`content` can be any IO-compatible object or byte data.
+"""
 function Base.write(f::File, content)
     payload, nbytes = upload_payload(content)
     API.upload_file(client(f), f.entity, payload)

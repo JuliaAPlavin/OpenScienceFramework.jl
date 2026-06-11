@@ -5,6 +5,13 @@ struct OSFError <: Exception
 end
 Base.showerror(io::IO, e::OSFError) = print(io, e.message)
 
+"""
+    API
+
+Internal submodule that provides low-level access to the OSF REST API and Waterbutler file API.
+Contains [`Client`](@ref), [`Entity`](@ref), HTTP request handling, and pagination utilities.
+For most use cases, prefer the high-level functions exported from the main module.
+"""
 module API
 include("general_api.jl")
 include("waterbutler_api.jl")

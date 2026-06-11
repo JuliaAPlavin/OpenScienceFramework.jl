@@ -1,3 +1,10 @@
+"""
+    file_viewonly_url(file, key::String, ltype::Symbol)
+    file_viewonly_url(file, link::Entity{:view_only_links}, ltype::Symbol)
+
+Generate a view-only URL for a file or file version.
+`ltype` specifies the link type (`:download` or `:update`).
+"""
 function file_viewonly_url(file::Union{Entity{:files}, Entity{:file_versions}}, key::String, ltype::Symbol)
     uri = parse(HTTP.URI, file.links[ltype])
     query = merge(HTTP.queryparams(uri), Dict("view_only" => key))
@@ -7,6 +14,12 @@ end
 file_viewonly_url(file::Union{Entity{:files}, Entity{:file_versions}}, link::Entity{:view_only_links}, ltype::Symbol) =
     file_viewonly_url(file, link.attributes[:key], ltype)
 
+"""
+    find_by_path(client, root::Entity{:files}, path::String)
+
+Recursively search for a file or directory by path within a storage root.
+Returns an [`Entity`](@ref) if found, or `nothing` if the path doesn't exist.
+"""
 function find_by_path(osf::Client, root::Entity{:files}, path::String)
     if root.attributes[:path] == "/"
         path == "/" && return root
@@ -23,10 +36,17 @@ function find_by_path(osf::Client, root::Entity{:files}, path::String)
     isempty(found) ? nothing : only(found)
 end
 
-# Pagination is only deterministic when sorted by a key unique within the listing:
+"""
+    relationship_complete(client, entity::Entity, rel::Symbol; kwargs...)
+
+Fetch all entities in a relationship, automatically handling pagination.
+Returns a `Vector{Entity}` with all items from all pages.
+
+Pagination is only deterministic when sorted by a key unique within the listing:
 # OSF sorts in SQL per page request, returning ties in arbitrary varying order,
 # which duplicates+skips entries across pages (issue #8). For files, `name` is such a key.
-function relationship_complete(osf::Client, entity::Entity, rel::Symbol; kwargs...)
+"""
+function relationship_complete(osf::Client, entity::Entity, rel::Symbol; sort::Union{String,Nothing}=nothing, kwargs...)
     es = relationship(osf, entity, rel; kwargs...)
     entities = es.data
     total = es.links["meta"]["total"]
